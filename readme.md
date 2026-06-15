@@ -1,0 +1,1 @@
+source : https://python.pages.doc.ic.ac.uk/java/lessons/java/10-files/03-load.html#:~:text=To%20load%20your%20data%20from,load(file_object)%20.&text=To%20load%20your%20object%20directly,for%20'load%20string').
