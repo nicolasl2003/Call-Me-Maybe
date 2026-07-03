@@ -4,6 +4,36 @@ import numpy as np
 import sys
 
 
+def filter_logits(logits, allowed_ids):
+    filtered = np.full_like(logits, -np.inf)
+    for token_id in allowed_ids:
+        filtered[token_id] = logits[token_id]
+    return (filtered)
+
+
+def get_digit_token_ids(model):
+    with open(model.get_path_to_vocab_file()) as file:
+        vocab = json.load(file)
+    digits_ids = []
+
+    for number in "0123456789":
+        digits_ids.append(vocab[number])
+    return (digits_ids)
+
+def generate_number(tokens, model):
+    
+
+
+"""def generate_param(model):
+    with open(model.get_path_to_vocab_file()) as file:
+        vocab = json.load(file)
+
+    items = list(vocab.items())[:20]
+    for k, v in items:
+        print(repr(k), "->", v)
+    print("\n Nombre total de token :", len(vocab))"""
+
+
 def generate_name(tokens, valid_names, model) -> str:
     encoded_names = {}
     generated = []
@@ -26,6 +56,7 @@ def generate_name(tokens, valid_names, model) -> str:
         generated.append(best)
 
     return (model.decode(generated))
+
 
 def parsing_definition() -> dict:
     with open("input/functions_definition.json", "r") as file:
@@ -62,7 +93,7 @@ if (__name__ == "__main__"):
     valid_names = [d["name"] for d in definitions]
     print(f"Noms valides : {valid_names}\n")
 
-    prompt = (
+    prompt_function = (
         "<|im_start|>system\n"
         "You are a function-calling assistant. "
         "Choose the SINGLE most appropriate function for the user's request.\n"
@@ -70,12 +101,11 @@ if (__name__ == "__main__"):
         f"{function_text}"
         "<|im_end|>\n"
         "<|im_start|>user\n"
-        f"{prompt}<|im_end|>\n"
+        f"{test_prompt}<|im_end|>\n"
         "<|im_start|>assistant\n"
         '{"name": "'
     )
 
-    tokens = model.encode(prompt).tolist()
-
+    tokens = model.encode(prompt_function).tolist()
     name = generate_name(tokens, valid_names, model)
-    print(f"Nom Genere : {name}")
+    print(f"name : {name}")
