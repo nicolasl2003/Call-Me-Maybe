@@ -1,7 +1,6 @@
 import json
 from llm_sdk import Small_LLM_Model
 import numpy as np
-import sys
 
 
 def filter_logits(logits, allowed_ids):
@@ -16,7 +15,7 @@ def get_digit_token_ids(model):
         vocab = json.load(file)
     digits_ids = []
 
-    for number in "0123456789":
+    for number in "0123456789.":
         digits_ids.append(vocab[number])
     return (digits_ids)
 
@@ -26,41 +25,63 @@ def generate_number(model, prompt, definitions, name_function):
     count_while = 0
     allowed_digit = get_digit_token_ids(model)
     logits_comma = int(model.encode(',')[0][0])
+    logits_point = int(model.encode('.')[0][0])
     logits_brace = int(model.encode('}')[0][0])
+    item = [i for i in definitions if i["name"] == name_function][0]
+    if item is None:
+        raise Exception("No item found with function")
+    nb_params = len(item['parameters'])
+    MAX_ITER = 50
     prompt_function = (
         "<|im_start|>system\n"
-        "You are a function-calling assistant. "
-        "Extract the multiple numbers from the user prompt.\n"
+        "You are a strict text-extraction assistant. "
+        "Your ONLY job is to copy the numbers that literally appear in the user's sentence, "
+        "in the order they appear, as digits separated by commas.\n"
+        "You are NOT a calculator. NEVER compute, solve, or transform any number. "
+        "NEVER output a number that is not literally written in the user's text. "
+        "Always end your output immediately after the last digit, followed by a closing brace '}'.\n"
+        "\n"
+        "Examples:\n"
+        "User: What is the sum of 5 and 7?"
+        "Output: 5,7}\n"
+        "\n"
+        "User: What is the square root of 16?"
+        "Output: 16}\n"
+        "\n"
+        "User: Calculate the square root of 144"
+        "Output: 144}\n"
+        "\n"
+        "User: What is the sum of 2.5 and 3.5"
+        "Output: 2.5,3.5}\n"
+        "User: What is the sum of 230.5 and 404.5"
+        "Output: 230.5,404.5}\n"
         "<|im_end|>\n"
         "<|im_start|>user\n"
         f"{prompt}<|im_end|>\n"
         "<|im_start|>assistant\n"
-        '"parameters": {"a":}'
+        "Output: "
     )
+
     tokens = model.encode(prompt_function).tolist()
-    allowed = allowed_digit + [logits_comma]
+    allowed = allowed_digit + [logits_comma, logits_brace, logits_point]
     while (True):
         count_while += 1
         chosen_card = model.get_logits_from_input_ids(tokens[0] + generated)
-        result_card = filter_logits(chosen_card, allowed)
+        nb_comma = generated.count(logits_comma)
+        if (generated and generated[-1] == logits_comma):
+            allowed_now = allowed_digit
+        elif (nb_comma + 1 >= nb_params):
+            allowed_now = allowed_digit + [logits_brace]
+        else:
+            allowed_now = allowed
+        result_card = filter_logits(chosen_card, allowed_now)
         best = int(np.argmax(result_card))
-        item = [i for i in definitions if i["name"] == name_function][0]
-        if item is None:
-            raise Exception("No item found with function")
-        if (best == logits_brace or count_while >= len(item['parameters']) + 2):
+        if (best == logits_brace):
+            break
+        if (count_while >= MAX_ITER):
             break
         generated.append(best)
     return (model.decode(generated))
-
-
-'''def generate_param(model):
-    with open(model.get_path_to_vocab_file()) as file:
-        vocab = json.load(file)
-
-    items = list(vocab.items())[:20]
-    for k, v in items:
-        print(repr(k), "->", v)
-    print("\n Nombre total de token :", len(vocab))'''
 
 
 def generate_name(tokens, valid_names, model) -> str:
@@ -85,6 +106,23 @@ def generate_name(tokens, valid_names, model) -> str:
         generated.append(best)
 
     return (model.decode(generated))
+
+
+def select_function(model, token, definitions, name):
+    result = []
+
+    for param_name, paran_info in parameter_schema.items():
+        param_type = paran_info["type"]
+        print("ok")
+        if (param_type == "number"):
+            value = generate_number(model, token, definitions, name)
+            result = value.split(',')
+        elif (param_type == "string"):
+            pass
+        else:
+            print(f"Type not supporte : {param_type} for {param_name}")
+            value = None
+    return (result)
 
 
 def parsing_definition() -> dict:
@@ -116,29 +154,28 @@ if (__name__ == "__main__"):
     function_text = ""
     params = []
     definitions = parsing_definition()
-
     for fn in definitions:
         function_text += f"- name : {fn['name']} description : {fn['description']}\n"
-    test_prompt = prompt[0]
-    valid_names = [d["name"] for d in definitions]
-    print(f"Noms valides : {valid_names}\n")
-
-    prompt_function = (
-        "<|im_start|>system\n"
-        "You are a function-calling assistant. "
-        "Choose the SINGLE most appropriate function for the user's request.\n"
-        "Available functions:\n"
-        f"{function_text}"
-        "<|im_end|>\n"
-        "<|im_start|>user\n"
-        f"{test_prompt}<|im_end|>\n"
-        "<|im_start|>assistant\n"
-        '{"name": "'
-    )
-
-    tokens = model.encode(prompt_function).tolist()
-    name = generate_name(tokens, valid_names, model)
-    params = generate_number(model, prompt[0], definitions, name)
-    params_split = params.split(',')
-    print(f"parametre : {params_split[0]}")
-    print(f"name : {name}")
+        valid_names = [d["name"] for d in definitions]
+        print(f"\nNoms valides : {valid_names}")
+    for token in prompt:
+        prompt_function = (
+            "<|im_start|>system\n"
+            "You are a function-calling assistant. "
+            "Choose the SINGLE most appropriate function for the user's request.\n"
+            "Available functions:\n"
+            f"{function_text}"
+            "<|im_end|>\n"
+            "<|im_start|>user\n"
+            f"{token}<|im_end|>\n"
+            "<|im_start|>assistant\n"
+            '{"name": "'
+        )
+        tokens = model.encode(prompt_function).tolist()
+        name = generate_name(tokens, valid_names, model)
+        selected_def = next(d for d in definitions if (d["name"] == name, None))
+        parameter_schema = selected_def["parameters"]
+        params = select_function(model, tokens, definitions, name)
+        print(token, end="\n\n")
+        print(f"parametre : {params}")
+        print(f"name : {name}")
