@@ -1,11 +1,11 @@
-from parsing import (
+from .parsing import (
     parsing_prompt,
     generate_name,
-    select_function,
-    generate_number,
+    # select_function,
     parsing_definition
 )
 from llm_sdk import Small_LLM_Model
+from .generate_number import generate_number
 
 
 def main():
