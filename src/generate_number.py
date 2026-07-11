@@ -2,6 +2,40 @@ import numpy as np
 import json
 
 
+def generate_string(model, prompt, definitions, name_function):
+    generated = []
+    i = 0
+    MAX_ITER = 50
+
+    prompt_function = model.encode(
+        "<|im_start|>system\n"
+        "You are a function-calling assistant. Extract the string parameter from the user prompt. Output ONLY the string value, then a closing brace '}'.<|im_end|>\n"
+        "<|im_start|>user\n"
+        "Reverse the string 'hello'<|im_end|>\n"
+        "<|im_start|>assistant\n"
+        "hello<|im_end|>\n"
+        "<|im_start|>user\n"
+        f"{prompt}<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    ).tolist()[0]
+
+    finish = int(model.encode("<|endoftext|>").tolist()[0][0])
+    logits_quote = int(model.encode('').tolist()[0][0])
+
+    while (True):
+        logits = model.get_logits_from_input_ids(prompt_function + generated)
+        best = int(np.argmax(logits))
+        if (best == finish or best == logits_quote):
+            print("finish")
+            break
+        if (i >= MAX_ITER):
+            break
+        generated.append(best)
+        i += 1
+
+    return model.decode(generated)
+
+
 def filter_logits(logits, allowed_ids):
     filtered = np.full_like(logits, -np.inf)
     for token_id in allowed_ids:
@@ -17,8 +51,6 @@ def get_digit_token_ids(model):
     for number in "0123456789.":
         digits_ids.append(vocab[number])
     return (digits_ids)
-
-# def generate_string(model, prompt, definitions, name_function):
 
 
 def generate_number(model, prompt, definitions, name_function):

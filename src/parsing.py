@@ -1,8 +1,8 @@
 import json
-from llm_sdk import Small_LLM_Model
-import numpy as np
 from pathlib import Path
-from .generate_number import generate_number
+from .generate_number import (generate_number,
+                              generate_string
+                              )
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -38,15 +38,14 @@ def select_function(model, token, definitions, name, parameter_schema):
 
     for param_name, paran_info in parameter_schema.items():
         param_type = paran_info["type"]
-        print("ok")
         if (param_type == "number"):
-            print("ok4")
             value = generate_number(model, token, definitions, name)
-            print("ok2")
             result = value.split(',')
             return (result)
         elif (param_type == "string"):
-            pass
+            value = generate_string(model, token, definitions, name)
+            result = value
+            return (result)
         else:
             print(f"Type not supporte : {param_type} for {param_name}")
             value = None
@@ -74,36 +73,3 @@ def parsing_prompt() -> list[str]:
             print("clee is empty")
             return
     return (prompt)
-
-
-if (__name__ == "__main__"):
-    model = Small_LLM_Model()
-    prompt = parsing_prompt()
-    function_text = ""
-    params = []
-    definitions = parsing_definition()
-    for fn in definitions:
-        function_text += f"- name : {fn['name']} description : {fn['description']}\n"
-        valid_names = [d["name"] for d in definitions]
-        print(f"\nNoms valides : {valid_names}")
-    for token in prompt:
-        prompt_function = (
-            "<|im_start|>system\n"
-            "You are a function-calling assistant. "
-            "Choose the SINGLE most appropriate function for the user's request.\n"
-            "Available functions:\n"
-            f"{function_text}"
-            "<|im_end|>\n"
-            "<|im_start|>user\n"
-            f"{token}<|im_end|>\n"
-            "<|im_start|>assistant\n"
-            '{"name": "'
-        )
-        tokens = model.encode(prompt_function).tolist()
-        name = generate_name(tokens, valid_names, model)
-        selected_def = next(d for d in definitions if (d["name"] == name, None))
-        parameter_schema = selected_def["parameters"]
-        result = select_function(model, tokens, definitions, name, parameter_schema)
-        print(token, end="\n\n")
-        print(f"parametre : {result}")
-        print(f"name : {name}")
