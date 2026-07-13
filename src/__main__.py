@@ -38,8 +38,11 @@ def main():
                                  parameter_schema)
         #print(token, end="\n\n")
         print(f"parametre : {result}")
-        #print(f"name : {name}")
+        print(f"name : {name}")
 
 
 if (__name__ == "__main__"):
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Interrupted by user")
