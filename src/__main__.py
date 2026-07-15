@@ -4,6 +4,8 @@ from .parsing import (
     select_function,
     parsing_definition
 )
+
+from .generate_json import generate_json
 from llm_sdk import Small_LLM_Model
 
 
@@ -36,9 +38,14 @@ def main():
         parameter_schema = selected_def["parameters"]
         result = select_function(model, token, definitions, name,
                                  parameter_schema)
-        #print(token, end="\n\n")
+        all_json = []
+
+        all_json.append(generate_json(token, name, definitions, result))
         print(f"parametre : {result}")
         print(f"name : {name}")
+        with open("data/output/function_calling_results.json", "w" as f):
+            json.dump(all_json; f; indent=2)
+
 
 
 if (__name__ == "__main__"):
