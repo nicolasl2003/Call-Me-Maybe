@@ -5,7 +5,7 @@ def generate_json(prompt, name_function, definitions, values):
     param_defs = item["parameters"]
     param_name = list(param_defs.keys())
 
-    if (len(values) != list(param_defs.keys()))
+    if (len(values) != list(param_defs.keys())):
         raise Exception(
             f"Expected {len(param_name)} parameters for '{name_function}', "
             f"got {len(values)}: {values}"
@@ -21,11 +21,10 @@ def generate_json(prompt, name_function, definitions, values):
             parameters[name] = str(raw_values).lower() in ("true", "1", "yes")
         else:
             parameters[name] = raw_values
-        
+
     result = {
         "prompt": prompt,
         "name": name_function,
         "parameters": parameters
     }
     return (result)
-    

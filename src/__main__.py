@@ -4,7 +4,7 @@ from .parsing import (
     select_function,
     parsing_definition
 )
-
+import json
 from .generate_json import generate_json
 from llm_sdk import Small_LLM_Model
 
@@ -43,9 +43,8 @@ def main():
         all_json.append(generate_json(token, name, definitions, result))
         print(f"parametre : {result}")
         print(f"name : {name}")
-        with open("data/output/function_calling_results.json", "w" as f):
-            json.dump(all_json; f; indent=2)
-
+    with open("data/output/function_calling_results.json"), "w" as f:
+        json.dump(all_json, f, indent=2)
 
 
 if (__name__ == "__main__"):
