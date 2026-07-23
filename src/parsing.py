@@ -15,6 +15,7 @@ def generate_name(tokens, valid_names, model) -> str:
 
     for name in valid_names:
         encoded_names[name] = model.encode(name).tolist()[0]
+    current_input = list(tokens[0])
     while (True):
         candidates = [
             enc for enc in encoded_names.values()
@@ -26,9 +27,10 @@ def generate_name(tokens, valid_names, model) -> str:
                 allowed.add(enc[len(generated)])
         if (not allowed):
             break
-        logits = model.get_logits_from_input_ids(tokens[0])
+        logits = model.get_logits_from_input_ids(current_input)
         best = max(allowed, key=lambda tok_id: logits[tok_id])
         generated.append(best)
+        current_input.append(best)
 
     return (model.decode(generated))
 
@@ -43,8 +45,9 @@ def select_function(model, token, definitions, name, parameter_schema):
             result = value.split(',')
             return (result)
         elif (param_type == "string"):
-            value = generate_string(model, token, definitions, name)
-            result = value
+            value = generate_string(model, token, definitions, name,
+                                    parameter_schema)
+            result = [value]
             return (result)
         else:
             print(f"Type not supporte : {param_type} for {param_name}")

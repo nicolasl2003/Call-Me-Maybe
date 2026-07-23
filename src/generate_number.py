@@ -1,5 +1,20 @@
 import numpy as np
 import json
+import re
+
+
+def get_allowed_regex_tokens(model) -> list[int]:
+    regex_chars: list = list("abcdefghijklmnopqrstuvwxy"
+                             "zABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    regex_symbols: list[str] = ["[", "]", "^", "-", "\\", "s", "d", "w",
+                                ".", "*", "+", "?", "(", ")", "|"]
+
+    allowed_ids = set()
+    for ch in regex_chars + regex_symbols:
+        ids = model.encode(ch).tolist()[0]
+        allowed_ids.update(ids)
+
+    return list(allowed_ids)
 
 
 def get_allowed_string_tokens(model, prompt: str) -> list[int]:
@@ -18,6 +33,7 @@ def generate_string(
     model,
     prompt: str,
     definitions: list[dict],
+    param_name: str,
     name_function: str,
 ) -> str:
     generated: list[int] = []
@@ -25,44 +41,68 @@ def generate_string(
     MAX_ITER = 50
 
     prompt_function = model.encode(
-        "<|im_start|>system\n"
-        "You are a strict text-extraction assistant. "
-        "Your ONLY job is to copy the string parameter that literally appears "
-        "in the user's sentence, exactly as written, character by character, "
-        "including any apostrophes if they are part of the value.\n"
-        "You are NOT allowed to translate, rephrase, correct, remove punctuation, or invent any part of it. "
-        "NEVER output a value that is not literally written in the user's text. "
-        "Always end your output immediately after the last character, followed by a closing apostrophe '.\n"
-        "\n"
-        "Examples:\n"
-        "User: Reverse the string 'hello'\n"
-        "Output: hello}\n"
-        "\n"
-        "User: Greet shrek\n"
-        "Output: shrek}\n"
-        "\n"
-        "User: Say 'bonjour' to marie\n"
-        "Output: bonjour}\n"
-        "\n"
-        "User: Greet john\n"
-        "Output: john}\n"
-        "\n"
-        "User: Reverse the string 'it's fine'\n"
-        "Output: it's fine}\n"
-        "\n"
-        "User: Say 'don't worry' to paul\n"
-        "Output: don't worry}\n"
-        "<|im_end|>\n"
-        "<|im_start|>user\n"
-        f"{prompt}<|im_end|>\n"
-        "<|im_start|>assistant\n"
-        "Output: "
+        "You are a function-calling assistant. Extract the exact string value "
+        "for the requested parameter from the user's request. "
+        "If the parameter is a regex pattern, produce a valid regular expression "
+        "that matches the described concept. "
+        "If the parameter refers to a symbol described by a word, output the symbol itself.\n\n"
+
+        "Example 1:\n"
+        "Request: \"Reverse the string 'hello world'\"\n"
+        "Function: fn_reverse_string\n"
+        "Parameter: s\n"
+        "Answer: hello world\n\n"
+
+        "Example 2:\n"
+        "Request: \"Greet shrek\"\n"
+        "Function: fn_greet\n"
+        "Parameter: name\n"
+        "Answer: shrek\n\n"
+
+        "Example 3:\n"
+        "Request: \"Replace all vowels in 'Programming is fun' with asterisks\"\n"
+        "Function: fn_substitute_string_with_regex\n"
+        "Parameter: source_string\n"
+        "Answer: Programming is fun\n\n"
+
+        "Example 4:\n"
+        "Request: \"Replace all vowels in 'Programming is fun' with asterisks\"\n"
+        "Function: fn_substitute_string_with_regex\n"
+        "Parameter: regex\n"
+        "Answer: [aeiouAEIOU]\n\n"
+
+        "Example 5:\n"
+        "Request: \"Replace all vowels in 'Programming is fun' with asterisks\"\n"
+        "Function: fn_substitute_string_with_regex\n"
+        "Parameter: replacement\n"
+        "Answer: *\n\n"
+
+        "Example 6:\n"
+        "Request: \"Replace all digits in 'abc123' with hashtags\"\n"
+        "Function: fn_substitute_string_with_regex\n"
+        "Parameter: regex\n"
+        "Answer: [0-9]\n\n"
+
+        "Example 7:\n"
+        "Request: \"Replace all digits in 'abc123' with hashtags\"\n"
+        "Function: fn_substitute_string_with_regex\n"
+        "Parameter: replacement\n"
+        "Answer: #\n\n"
+
+        f"Now answer for this request:\n"
+        f"Request: \"{prompt}\"\n"
+        f"Function: {name_function}\n"
+        f"Parameter: {param_name}\n"
+        f"Answer:"
     ).tolist()[0]
 
     finish = int(model.encode("<|endoftext|>").tolist()[0][0])
-    logits_apostrophe = int(model.encode('\'').tolist()[0][0])
+    logits_apostrophe = int(model.encode('\n').tolist()[0][0])
 
-    allowed_ids = get_allowed_string_tokens(model, prompt)
+    if (param_name == "regex"):
+        allowed_ids = get_allowed_regex_tokens(model)
+    else:
+        allowed_ids = get_allowed_string_tokens(model, prompt)
     allowed_ids = list(set(allowed_ids + [logits_apostrophe]))
 
     while True:
@@ -74,14 +114,13 @@ def generate_string(
             break
         if i >= MAX_ITER:
             break
-
         generated.append(best)
         i += 1
 
     if (not generated):
         return ""
 
-    return (model.decode(generated))
+    return (model.decode(generated).strip())
 
 
 def get_digit_token_ids(model):
@@ -89,7 +128,7 @@ def get_digit_token_ids(model):
         vocab = json.load(file)
     digits_ids = []
 
-    for number in "-0123456789.":
+    for number in "0123456789.-":
         digits_ids.append(vocab[number])
     return (digits_ids)
 
@@ -102,7 +141,9 @@ def generate_number(model, prompt, definitions, name_function):
     logits_point = int(model.encode('.')[0][0])
     logits_brace = int(model.encode('}')[0][0])
     logits_negative = int(model.encode('-')[0][0])
+    logits_negative_space: int = int(model.encode(' -')[0][0])
     item = [i for i in definitions if i["name"] == name_function][0]
+    number_in_prompt = re.findall(r'-?\d+(?:\.\d+)?', prompt)
     if item is None:
         raise Exception("No item found with function")
     nb_params = len(item['parameters'])
@@ -132,8 +173,6 @@ def generate_number(model, prompt, definitions, name_function):
         "Output: 230.5,404.5}\n"
         "User: What is the sum of -15 and 42?\n"
         "Output: -15,42}\n"
-        "User: What is the sum of -3 and 8?\n"
-        "Output: -3,8}\n"
         "<|im_end|>\n"
         "<|im_start|>user\n"
         f"{prompt}<|im_end|>\n"
@@ -147,12 +186,29 @@ def generate_number(model, prompt, definitions, name_function):
         count_while += 1
         chosen_card = model.get_logits_from_input_ids(tokens[0] + generated)
         nb_comma = generated.count(logits_comma)
-        if (generated and generated[-1] == logits_comma):
-            allowed_now = allowed_digit + [logits_negative]
+
+        is_start_of_number = ((not generated) or generated[-1] == logits_comma)
+
+        if (is_start_of_number and nb_comma < len(number_in_prompt)
+                and number_in_prompt[nb_comma].startswith('-')):
+            generated.append(logits_negative)
+            if (count_while >= MAX_ITER):
+                break
+            continue
+
+        if (is_start_of_number):
+            if (nb_comma + 1 >= nb_params):
+                allowed_now = allowed_digit + [logits_negative,
+                                               logits_negative_space,
+                                               logits_brace]
+            else:
+                allowed_now = allowed_digit + [logits_negative,
+                                               logits_negative_space]
         elif (nb_comma + 1 >= nb_params):
             allowed_now = allowed_digit + [logits_brace]
         else:
             allowed_now = allowed
+
         result_card = filter_logits(chosen_card, allowed_now)
         best = int(np.argmax(result_card))
         if (best == logits_brace):
