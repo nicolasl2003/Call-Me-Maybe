@@ -1,11 +1,11 @@
 from .parsing import (
     parsing_prompt,
-    generate_name,
     select_function,
     parsing_definition
 )
 from .generate_json import generate_json
 import json
+from .generate_function import generate_name
 from llm_sdk import Small_LLM_Model
 
 

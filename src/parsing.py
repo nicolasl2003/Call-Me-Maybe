@@ -3,36 +3,42 @@ from pathlib import Path
 from .generate_number import (generate_number,
                               generate_string
                               )
-
+from pydantic import BaseModel, model_validator, ValidationError
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_DIR = BASE_DIR / "input"
 
 
-def generate_name(tokens, valid_names, model) -> str:
-    encoded_names = {}
-    generated = []
+class Prompt(BaseModel):
+    valid_prompt: str
 
-    for name in valid_names:
-        encoded_names[name] = model.encode(name).tolist()[0]
-    current_input = list(tokens[0])
-    while (True):
-        candidates = [
-            enc for enc in encoded_names.values()
-            if (enc[:len(generated)] == generated)
-        ]
-        allowed = set()
-        for enc in candidates:
-            if (len(enc) > len(generated)):
-                allowed.add(enc[len(generated)])
-        if (not allowed):
-            break
-        logits = model.get_logits_from_input_ids(current_input)
-        best = max(allowed, key=lambda tok_id: logits[tok_id])
-        generated.append(best)
-        current_input.append(best)
+    @model_validator(mode="after")
+    def check_prompt(self) -> "Prompt":
+        if (self.prompt == ""):
+            raise ValueError(
+                "Error: prompt is empty"
+            )
+        return (self)
 
-    return (model.decode(generated))
+    @classmethod
+    def pars_list(cls, raw_data: list[dict]) -> list["Prompt"]:
+        valid_prompts: list["Prompt"] = []
+        for item in raw_data:
+            try:
+                p = cls.model_validator(item)
+            except ValidationError as e:
+                print(f"Error skipping item {item}: {e}")
+                continue
+            valid_prompts.append(p)
+            return (valid_prompts)
+
+
+class definition(BaseModel):
+    name: str
+    description: str
+    parameters: dict
+
 
 
 def select_function(model, token, definitions, name, parameter_schema):
@@ -56,23 +62,31 @@ def select_function(model, token, definitions, name, parameter_schema):
 
 
 def parsing_definition() -> dict:
-    with open(INPUT_DIR / "functions_definition.json", "r") as file:
-        data = json.load(file)
+    try:
+        with open(INPUT_DIR / "functions_definition.json", "r") as file:
+            data = json.load(file)
+    except json.decoder.JSONDecodeError:
+        print("Error")
+        sys.exit(1)
     return (data)
 
 
 def parsing_prompt() -> list[str]:
 
     prompt: list[str] = []
-    with open(INPUT_DIR / "function_calling_tests.json", "r") as file:
-        data: dict = json.load(file)
+    try:
+        with open(INPUT_DIR / "function_calling_tests.json", "r") as file:
+            data: dict = json.load(file)
+    except json.decoder.JSONDecodeError:
+        print("Error")
+        sys.exit(1)
 
     for i in data:
         try:
             if (i['prompt'] == ""):
                 print("Error : prompte is empty")
             prompt.append(i['prompt'])
-        except KeyError:
+        except (KeyError, json.decoder.JSONDecodeError):
             print("clee is empty")
             return
     return (prompt)

@@ -45,7 +45,7 @@ def generate_string(
         "for the requested parameter from the user's request. "
         "If the parameter is a regex pattern, produce a valid regular expression "
         "that matches the described concept. "
-        "If the parameter refers to a symbol described by a word, output the symbol itself.\n\n"
+        "Always end your output immediately after the last character, followed by a closing apostrophe '.\n"
 
         "Example 1:\n"
         "Request: \"Reverse the string 'hello world'\"\n"
@@ -97,7 +97,8 @@ def generate_string(
     ).tolist()[0]
 
     finish = int(model.encode("<|endoftext|>").tolist()[0][0])
-    logits_apostrophe = int(model.encode('\n').tolist()[0][0])
+    logits_apostrophe = int(model.encode("'").tolist()[0][0])
+    logits_returnline = int(model.encode('\n').tolist()[0][0])
 
     if (param_name == "regex"):
         allowed_ids = get_allowed_regex_tokens(model)
@@ -109,8 +110,8 @@ def generate_string(
         logits = model.get_logits_from_input_ids(prompt_function + generated)
         filtered = filter_logits(np.array(logits), allowed_ids)
         best = int(np.argmax(filtered))
-
-        if best == finish or best == logits_apostrophe:
+        print(best)
+        if ((best == finish) or (best == logits_apostrophe) or (best == logits_returnline)):
             break
         if i >= MAX_ITER:
             break
