@@ -40,7 +40,6 @@ class definition(BaseModel):
     parameters: dict
 
 
-
 def select_function(model, token, definitions, name, parameter_schema):
     result = []
 
