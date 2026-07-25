@@ -110,8 +110,8 @@ def generate_string(
         logits = model.get_logits_from_input_ids(prompt_function + generated)
         filtered = filter_logits(np.array(logits), allowed_ids)
         best = int(np.argmax(filtered))
-        print(best)
-        if ((best == finish) or (best == logits_apostrophe) or (best == logits_returnline)):
+        if ((best == finish) or (best == logits_apostrophe) or
+                (best == logits_returnline)):
             break
         if i >= MAX_ITER:
             break
@@ -129,7 +129,7 @@ def get_digit_token_ids(model):
         vocab = json.load(file)
     digits_ids = []
 
-    for number in "0123456789.-":
+    for number in "0123456789.":
         digits_ids.append(vocab[number])
     return (digits_ids)
 
