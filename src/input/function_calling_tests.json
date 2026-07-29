@@ -1,15 +1,15 @@
 [
   {
+    "prompt": "What is the sum of 2 and 3?"
+  },
+  {
+    "prompt": "What is the sum of 265 and 345?"
+  },
+  {
     "prompt": "Greet shrek"
   },
   {
     "prompt": "Greet john"
-  },
-  {
-    "prompt": "Greet Marie-Claire"
-  },
-  {
-    "prompt": "Say hello to O'Brien"
   },
   {
     "prompt": "Reverse the string 'hello'"
@@ -18,10 +18,10 @@
     "prompt": "Reverse the string 'world'"
   },
   {
-    "prompt": "Reverse the string 'it's fine'"
+    "prompt": "What is the square root of 16?"
   },
   {
-    "prompt": "Reverse the string 'A man a plan a canal Panama'"
+    "prompt": "Calculate the square root of 144"
   },
   {
     "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS"
@@ -31,11 +31,5 @@
   },
   {
     "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'"
-  },
-  {
-    "prompt": "Replace every occurrence of 'a' with '@' in 'banana split'"
-  },
-  {
-    "prompt": "In the sentence 'I have 5 apples and 10 oranges', replace all digits with X"
   }
 ]

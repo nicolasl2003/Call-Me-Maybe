@@ -23,6 +23,27 @@ def generate_string(
     current_param: str,
     filled_param: dict
 ) -> str:
+    """
+        Generate a value for a specific function-call parameter using greedy
+        token-by-token decoding with the given model.
+
+        Builds a type-aware prompt (number, boolean, regex, or generic string)
+        and decodes tokens until a stopping condition is met (newline or
+        repeated trailing characters), then returns the cleaned value.
+
+        Args:
+            model: Language model exposing `encode`, `decode`, and
+                `get_logits_from_input_ids`.
+            prompt (str): Natural language request describing the desired action.
+            definitions (list[dict]): Available function definitions, used to
+                look up parameter metadata (e.g. type).
+            name_function (str): Name of the function being called.
+            current_param (str): Name of the parameter to generate a value for.
+            filled_param (dict): Parameters already filled, used as context.
+
+        Returns:
+            str: The generated value, stripped of quotes and whitespace.
+    """
     param_info = get_param_info(definitions, name_function, current_param)
     param_type = param_info.get("type", "string")
     prompt_function = (
@@ -32,17 +53,42 @@ def generate_string(
         "Rules by type:\n"
         "  - number: a raw integer or float, no units.\n"
         "  - boolean: exactly 'true' or 'false'.\n"
-        "  - string (regex): output a PATTERN, NEVER copy literal values/numbers from the request:\n"
+        "  - string (regex) — ONLY applies when the parameter name is exactly "
+        "'regex': output a PATTERN, NEVER copy literal values/numbers from "
+        "the request:\n"
         "    Request: Replace all numbers in \"I have 5 cats\" with X -> regex: \\d+\n"
         "    Request: Replace all digits in \"a1b2\" with X -> regex: \\d+\n"
-        "    Request: Replace all vowels in 'hello world' with * -> regex: [aeiouAEIOU]\n"
+        "    Request: Replace all vowels in 'hello world' with * -> "
+        "regex: [aeiouAEIOU]\n"
         "    Request: Replace all letters in 'abc123' with # -> regex: [a-zA-Z]+\n"
         "    Request: Replace the word 'cat' with 'dog' in 'the cat sat' -> regex: cat\n"
-        "  - string (other): a raw short value (word, name, sentence), no quotes.\n\n"
+        "    Rule: to match ANY ONE of several characters (all vowels, all "
+        "letters, ...) you MUST wrap them in square brackets, e.g. "
+        "[aeiouAEIOU]. A bare sequence of letters with no brackets (aeiouAEIOU) "
+        "is NOT a valid pattern and only matches that exact literal string.\n"
+        "  - string (other) — used for every parameter NOT named 'regex' "
+        "(e.g. replacement, source_string, name, s): a raw short value (word, "
+        "name, sentence) copied exactly from the request, no quotes. NEVER "
+        "output a regex pattern here.\n"
+        "    Request: Replace all vowels in 'test' with asterisks, "
+        "parameter 'replacement' -> replacement: *\n"
+        "    Request: Replace every occurrence of 'x' with '#' in "
+        "'exit code', parameter 'replacement' -> replacement: #\n"
+        "    Request: Replace all numbers in \"I have 5 cats\" with NUMBERS, "
+        "parameter 'replacement' -> replacement: NUMBERS\n"
+        "    Rule: if the replacement is already given as a quoted literal "
+        "(e.g. with '@'), copy that literal exactly. If instead it is "
+        "described in words that name a symbol (asterisk/star -> *, "
+        "hash/pound -> #, at sign -> @, dash/hyphen -> -), output that single "
+        "character. Otherwise copy the exact word/phrase requested — it is "
+        "almost never a number found elsewhere in the sentence.\n\n"
         f"Request: {prompt}\n"
         f"Function: {name_function}\n"
         f"Parameter '{current_param}' has type: {param_type}\n"
         f"Already filled parameters: {filled_param}\n"
+        "Reminder: if this value names a symbol (asterisk/star -> *, "
+        "hash/pound -> #, at sign -> @, dash/hyphen -> -), output only that "
+        "single character, never the word itself.\n"
         f"Value for parameter '{current_param}':"
     )
     generated: list[int] = []
@@ -50,7 +96,7 @@ def generate_string(
 
     for _ in range(50):
         logits = model.get_logits_from_input_ids(tokens + generated)
-        next_token = int(max(range(len(logits)), key=lambda i: logits[i]))
+        next_token = int(logits.index(max(logits)))
 
         generated.append(next_token)
 
