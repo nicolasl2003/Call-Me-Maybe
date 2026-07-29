@@ -71,7 +71,7 @@ class Definition(BaseModel):
 
 def select_function(model, token, definitions, name, parameter_schema):
     result = []
-
+    filled_param = {}
     for param_name, paran_info in parameter_schema.items():
         param_type = paran_info['type']
         if (param_type == "number"):
@@ -79,10 +79,10 @@ def select_function(model, token, definitions, name, parameter_schema):
             result = value.split(',')
             return (result)
         elif (param_type == "string"):
-            value = generate_string(model, token, definitions, name,
-                                    parameter_schema)
-            result = [value]
-            return (result)
+            value = generate_string(model, token, definitions,
+                                    name, param_name, filled_param)
+            filled_param.update({param_name: value})
+            result.append(value)
         else:
             print(f"Type not supporte : {param_type} for {param_name}")
             value = None

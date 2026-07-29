@@ -3,25 +3,6 @@ import json
 import re
 
 
-def get_allowed_regex_tokens(model) -> list[int]:
-    regex_chars: list = list("abcdefghijklmnopqrstuvwxy"
-                             "zABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-    regex_symbols: list[str] = ["[", "]", "^", "-", "\\", "s", "d", "w",
-                                ".", "*", "+", "?", "(", ")", "|"]
-
-    allowed_ids = set()
-    for ch in regex_chars + regex_symbols:
-        ids = model.encode(ch).tolist()[0]
-        allowed_ids.update(ids)
-
-    return list(allowed_ids)
-
-
-def get_allowed_string_tokens(model, prompt: str) -> list[int]:
-    prompt_tokens = model.encode(prompt).tolist()[0]
-    return list(set(prompt_tokens))
-
-
 def filter_logits(logits, allowed_ids):
     filtered = np.full_like(logits, -np.inf)
     for token_id in allowed_ids:
@@ -29,99 +10,60 @@ def filter_logits(logits, allowed_ids):
     return (filtered)
 
 
+def get_param_info(definitions: list[dict], name_function: str, current_param: str) -> dict:
+    func_def = next((f for f in definitions if (f["name"] == name_function)), {})
+    return (func_def.get("parameters", {}).get(current_param, {}))
+
+
 def generate_string(
     model,
     prompt: str,
     definitions: list[dict],
-    param_name: str,
     name_function: str,
+    current_param: str,
+    filled_param: dict
 ) -> str:
-    generated: list[int] = []
-    i = 0
-    MAX_ITER = 50
-
-    prompt_function = model.encode(
-        "You are a function-calling assistant. Extract the exact string value "
-        "for the requested parameter from the user's request. "
-        "If the parameter is a regex pattern, produce a valid regular expression "
-        "that matches the described concept. "
-        "Always end your output immediately after the last character, followed by a closing apostrophe '.\n"
-
-        "Example 1:\n"
-        "Request: \"Reverse the string 'hello world'\"\n"
-        "Function: fn_reverse_string\n"
-        "Parameter: s\n"
-        "Answer: hello world\n\n"
-
-        "Example 2:\n"
-        "Request: \"Greet shrek\"\n"
-        "Function: fn_greet\n"
-        "Parameter: name\n"
-        "Answer: shrek\n\n"
-
-        "Example 3:\n"
-        "Request: \"Replace all vowels in 'Programming is fun' with asterisks\"\n"
-        "Function: fn_substitute_string_with_regex\n"
-        "Parameter: source_string\n"
-        "Answer: Programming is fun\n\n"
-
-        "Example 4:\n"
-        "Request: \"Replace all vowels in 'Programming is fun' with asterisks\"\n"
-        "Function: fn_substitute_string_with_regex\n"
-        "Parameter: regex\n"
-        "Answer: [aeiouAEIOU]\n\n"
-
-        "Example 5:\n"
-        "Request: \"Replace all vowels in 'Programming is fun' with asterisks\"\n"
-        "Function: fn_substitute_string_with_regex\n"
-        "Parameter: replacement\n"
-        "Answer: *\n\n"
-
-        "Example 6:\n"
-        "Request: \"Replace all digits in 'abc123' with hashtags\"\n"
-        "Function: fn_substitute_string_with_regex\n"
-        "Parameter: regex\n"
-        "Answer: [0-9]\n\n"
-
-        "Example 7:\n"
-        "Request: \"Replace all digits in 'abc123' with hashtags\"\n"
-        "Function: fn_substitute_string_with_regex\n"
-        "Parameter: replacement\n"
-        "Answer: #\n\n"
-
-        f"Now answer for this request:\n"
-        f"Request: \"{prompt}\"\n"
+    param_info = get_param_info(definitions, name_function, current_param)
+    param_type = param_info.get("type", "string")
+    prompt_function = (
+        "Fill the JSON function call for the request. "
+        "Output ONLY the raw, exact, short value for the requested parameter. "
+        "No quotes, no explanation, no extra text.\n"
+        "Rules by type:\n"
+        "  - number: a raw integer or float, no units.\n"
+        "  - boolean: exactly 'true' or 'false'.\n"
+        "  - string (regex): output a PATTERN, NEVER copy literal values/numbers from the request:\n"
+        "    Request: Replace all numbers in \"I have 5 cats\" with X -> regex: \\d+\n"
+        "    Request: Replace all digits in \"a1b2\" with X -> regex: \\d+\n"
+        "    Request: Replace all vowels in 'hello world' with * -> regex: [aeiouAEIOU]\n"
+        "    Request: Replace all letters in 'abc123' with # -> regex: [a-zA-Z]+\n"
+        "    Request: Replace the word 'cat' with 'dog' in 'the cat sat' -> regex: cat\n"
+        "  - string (other): a raw short value (word, name, sentence), no quotes.\n\n"
+        f"Request: {prompt}\n"
         f"Function: {name_function}\n"
-        f"Parameter: {param_name}\n"
-        f"Answer:"
-    ).tolist()[0]
+        f"Parameter '{current_param}' has type: {param_type}\n"
+        f"Already filled parameters: {filled_param}\n"
+        f"Value for parameter '{current_param}':"
+    )
+    generated: list[int] = []
+    tokens = model.encode(prompt_function).tolist()[0]
 
-    finish = int(model.encode("<|endoftext|>").tolist()[0][0])
-    logits_apostrophe = int(model.encode("'").tolist()[0][0])
-    logits_returnline = int(model.encode('\n').tolist()[0][0])
+    for _ in range(50):
+        logits = model.get_logits_from_input_ids(tokens + generated)
+        next_token = int(max(range(len(logits)), key=lambda i: logits[i]))
 
-    if (param_name == "regex"):
-        allowed_ids = get_allowed_regex_tokens(model)
-    else:
-        allowed_ids = get_allowed_string_tokens(model, prompt)
-    allowed_ids = list(set(allowed_ids + [logits_apostrophe]))
+        generated.append(next_token)
 
-    while True:
-        logits = model.get_logits_from_input_ids(prompt_function + generated)
-        filtered = filter_logits(np.array(logits), allowed_ids)
-        best = int(np.argmax(filtered))
-        if ((best == finish) or (best == logits_apostrophe) or
-                (best == logits_returnline)):
+        decoded_stopping = model.decode(generated)
+        if ("\n" in decoded_stopping):
             break
-        if i >= MAX_ITER:
+        if (len(decoded_stopping) >= 8 and len(set(decoded_stopping[-8:])) <= 1):
             break
-        generated.append(best)
-        i += 1
 
-    if (not generated):
-        return ""
-
-    return (model.decode(generated).strip())
+    value = model.decode(generated).strip()
+    value = value.split("\n")[0]
+    value = value.strip().strip('"').strip("'")
+    return (value)
 
 
 def get_digit_token_ids(model):

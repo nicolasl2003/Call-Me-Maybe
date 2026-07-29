@@ -1,4 +1,4 @@
-# Makefile - Call-Me-Maybe
+ # Makefile - Call-Me-Maybe
 
 install:
 	uv sync
