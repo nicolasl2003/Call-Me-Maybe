@@ -10,8 +10,10 @@ def filter_logits(logits, allowed_ids):
     return (filtered)
 
 
-def get_param_info(definitions: list[dict], name_function: str, current_param: str) -> dict:
-    func_def = next((f for f in definitions if (f["name"] == name_function)), {})
+def get_param_info(definitions: list[dict], name_function: str,
+                   current_param: str) -> dict:
+    func_def = next((f for f in definitions if
+                     (f["name"] == name_function)), {})
     return (func_def.get("parameters", {}).get(current_param, {}))
 
 
@@ -34,7 +36,8 @@ def generate_string(
         Args:
             model: Language model exposing `encode`, `decode`, and
                 `get_logits_from_input_ids`.
-            prompt (str): Natural language request describing the desired action.
+            prompt (str): Natural language request
+            describing the desired action.
             definitions (list[dict]): Available function definitions, used to
                 look up parameter metadata (e.g. type).
             name_function (str): Name of the function being called.

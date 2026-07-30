@@ -44,7 +44,8 @@ def main():
         prompt_function = (
             "<|im_start|>system\n"
             "You are a function-calling assistant. "
-            "Choose the SINGLE most appropriate function for the user's request.\n"
+            "Choose the SINGLE most appropriate function for"
+            " the user's request.\n"
             "Available functions:\n"
             f"{function_text}"
             "<|im_end|>\n"

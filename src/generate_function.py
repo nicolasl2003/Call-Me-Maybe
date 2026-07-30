@@ -1,7 +1,7 @@
 
 def generate_name(tokens, valid_names, model) -> str:
     encoded_names = {}
-    generated = []
+    generated: list = []
 
     for name in valid_names:
         encoded_names[name] = model.encode(name).tolist()[0]

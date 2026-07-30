@@ -1,35 +1,129 @@
 [
-  {
-    "prompt": "What is the sum of 2 and 3?"
-  },
-  {
-    "prompt": "What is the sum of 265 and 345?"
-  },
-  {
-    "prompt": "Greet shrek"
-  },
-  {
-    "prompt": "Greet john"
-  },
-  {
-    "prompt": "Reverse the string 'hello'"
-  },
-  {
-    "prompt": "Reverse the string 'world'"
-  },
-  {
-    "prompt": "What is the square root of 16?"
-  },
-  {
-    "prompt": "Calculate the square root of 144"
-  },
-  {
-    "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS"
-  },
-  {
-    "prompt": "Replace all vowels in 'Programming is fun' with asterisks"
-  },
-  {
-    "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'"
-  }
+  { "prompt": "What is the sum of 12 and 45?" },
+  { "prompt": "What is the sum of 8 and 19?" },
+  { "prompt": "What is the sum of 999 and 1?" },
+  { "prompt": "What is the sum of 500 and 500?" },
+  { "prompt": "Add 23 and 77" },
+  { "prompt": "Add 3 and 4" },
+  { "prompt": "What is 9 plus 16?" },
+  { "prompt": "What is 42 plus 58?" },
+  { "prompt": "What is 123 plus 456?" },
+  { "prompt": "Sum 5 and 10" },
+
+  { "prompt": "Greet mary" },
+  { "prompt": "Greet peter" },
+  { "prompt": "Greet lucas" },
+  { "prompt": "Greet sophia" },
+  { "prompt": "Greet oliver" },
+  { "prompt": "Greet emily" },
+  { "prompt": "Greet daniel" },
+  { "prompt": "Greet olivia" },
+  { "prompt": "Greet noah" },
+  { "prompt": "Greet ava" },
+
+  { "prompt": "Reverse the string 'banana'" },
+  { "prompt": "Reverse the string 'computer'" },
+  { "prompt": "Reverse the string 'keyboard'" },
+  { "prompt": "Reverse the string 'developer'" },
+  { "prompt": "Reverse the string 'algorithm'" },
+  { "prompt": "Reverse the string 'function'" },
+  { "prompt": "Reverse the string 'variable'" },
+  { "prompt": "Reverse the string 'network'" },
+  { "prompt": "Reverse the string 'database'" },
+  { "prompt": "Reverse the string 'internet'" },
+
+  { "prompt": "What is the square root of 4?" },
+  { "prompt": "What is the square root of 9?" },
+  { "prompt": "What is the square root of 25?" },
+  { "prompt": "What is the square root of 36?" },
+  { "prompt": "What is the square root of 64?" },
+  { "prompt": "What is the square root of 100?" },
+  { "prompt": "Calculate the square root of 121" },
+  { "prompt": "Calculate the square root of 169" },
+  { "prompt": "Calculate the square root of 196" },
+  { "prompt": "Calculate the square root of 256" },
+
+  { "prompt": "Replace all numbers in \"I bought 3 apples and 7 oranges\" with NUMBERS" },
+  { "prompt": "Replace all numbers in \"There are 42 students in room 12\" with NUMBERS" },
+  { "prompt": "Replace all digits in \"Order 456 shipped on 12/03\" with DIGITS" },
+  { "prompt": "Replace all digits in \"Code 007 is active\" with DIGITS" },
+  { "prompt": "Replace all numbers in \"He scored 99 out of 100\" with NUMBERS" },
+
+  { "prompt": "Replace all vowels in 'Hello World' with asterisks" },
+  { "prompt": "Replace all vowels in 'Programming is fun' with hash" },
+  { "prompt": "Replace all vowels in 'Data Science' with dash" },
+  { "prompt": "Replace all vowels in 'Machine Learning' with at sign" },
+  { "prompt": "Replace all vowels in 'Quick Brown Fox' with asterisk" },
+
+  { "prompt": "Substitute the word 'dog' with 'cat' in 'The dog barked at the other dog'" },
+  { "prompt": "Substitute the word 'good' with 'bad' in 'That is a good idea, a really good one'" },
+  { "prompt": "Substitute the word 'big' with 'small' in 'The big house had a big garden'" },
+  { "prompt": "Substitute the word 'fast' with 'slow' in 'The fast car passed the fast train'" },
+  { "prompt": "Substitute the word 'yes' with 'no' in 'He said yes but meant yes'" },
+
+  { "prompt": "What is the sum of 1 and 1" },
+  { "prompt": "What is the sum of 33 and 67" },
+  { "prompt": "Add 200 and 300" },
+  { "prompt": "What is 15 plus 85?" },
+  { "prompt": "What is 7 plus 7?" },
+
+  { "prompt": "Greet charlie" },
+  { "prompt": "Greet lily" },
+  { "prompt": "Greet ethan" },
+  { "prompt": "Greet grace" },
+  { "prompt": "Greet henry" },
+
+  { "prompt": "Reverse the string 'chocolate'" },
+  { "prompt": "Reverse the string 'umbrella'" },
+  { "prompt": "Reverse the string 'mountain'" },
+  { "prompt": "Reverse the string 'elephant'" },
+  { "prompt": "Reverse the string 'notebook'" },
+
+  { "prompt": "What is the square root of 144?" },
+  { "prompt": "What is the square root of 400?" },
+  { "prompt": "Calculate the square root of 289" },
+  { "prompt": "Calculate the square root of 324" },
+  { "prompt": "Calculate the square root of 441" },
+
+  { "prompt": "Replace all numbers in \"Room 101, floor 2, building 5\" with NUMBERS" },
+  { "prompt": "Replace all digits in \"Password is 1234abcd\" with DIGITS" },
+  { "prompt": "Replace all numbers in \"She is 25 years old and 170 cm tall\" with NUMBERS" },
+
+  { "prompt": "Replace all vowels in 'Beautiful Sunset' with underscore" },
+  { "prompt": "Replace all vowels in 'Wonderful Day' with star" },
+  { "prompt": "Replace all vowels in 'Coding Time' with pound" },
+
+  { "prompt": "Substitute the word 'up' with 'down' in 'She looked up then looked up again'" },
+  { "prompt": "Substitute the word 'left' with 'right' in 'Turn left, not left, turn right'" },
+  { "prompt": "Substitute the word 'open' with 'close' in 'Please open the door, then open the window'" },
+
+  { "prompt": "What is the sum of 40 and 60?" },
+  { "prompt": "What is 100 plus 200?" },
+  { "prompt": "Add 55 and 45" },
+  { "prompt": "What is the sum of 3 and 9999?" },
+  { "prompt": "What is 21 plus 34?" },
+
+  { "prompt": "Greet isabella" },
+  { "prompt": "Greet jack" },
+  { "prompt": "Greet zoe" },
+  { "prompt": "Greet leo" },
+  { "prompt": "Greet mia" },
+
+  { "prompt": "Reverse the string 'sunshine'" },
+  { "prompt": "Reverse the string 'butterfly'" },
+  { "prompt": "Reverse the string 'raincoat'" },
+  { "prompt": "Reverse the string 'backpack'" },
+  { "prompt": "Reverse the string 'telephone'" },
+
+  { "prompt": "What is the square root of 625?" },
+  { "prompt": "Calculate the square root of 729" },
+  { "prompt": "Calculate the square root of 900" },
+  { "prompt": "What is the square root of 1?" },
+  { "prompt": "What is the square root of 0?" },
+
+  { "prompt": "Replace all numbers in \"Meeting at 3pm on the 15th\" with NUMBERS" },
+  { "prompt": "Replace all vowels in 'Simple Test Case' with at sign" },
+  { "prompt": "Substitute the word 'here' with 'there' in 'Come here, stay here, look here'" },
+  { "prompt": "Substitute the word 'start' with 'finish' in 'We start early and start late'" },
+  { "prompt": "Replace all digits in \"Item 999 costs 50 dollars\" with DIGITS" }
 ]
