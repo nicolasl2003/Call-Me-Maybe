@@ -1,14 +1,11 @@
 import json
-from pathlib import Path
 from .generate_number import (generate_number,
                               generate_string
                               )
 from pydantic import BaseModel, model_validator, Field, ValidationError
+from llm_sdk import Small_LLM_Model
 from typing import Literal
 import sys
-
-BASE_DIR = Path(__file__).resolve().parent
-INPUT_DIR = BASE_DIR / "input"
 
 
 class Prompt(BaseModel):
@@ -69,9 +66,11 @@ class Definition(BaseModel):
         return (valid_defs)
 
 
-def select_function(model, token, definitions, name, parameter_schema):
+def select_function(model: Small_LLM_Model, token: str, definitions: list,
+                    name: str,
+                    parameter_schema: dict) -> list:
     result = []
-    filled_param = {}
+    filled_param: dict = {}
     for param_name, paran_info in parameter_schema.items():
         param_type = paran_info['type']
         if (param_type == "number"):
@@ -93,7 +92,8 @@ def load_json_file(path: str) -> list[dict]:
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except FileNotFoundError:
+    except (FileNotFoundError, IsADirectoryError, NotADirectoryError,
+            PermissionError):
         print(f"Error: file not found: {path}")
         sys.exit(1)
     except json.JSONDecodeError as e:

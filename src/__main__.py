@@ -8,10 +8,14 @@ from .parse_args import parse_args
 import json
 import sys
 from .generate_function import generate_name
-from llm_sdk import Small_LLM_Model
+try:
+    from llm_sdk import Small_LLM_Model
+except KeyboardInterrupt:
+    sys.exit()
+from pathlib import Path
 
 
-def main():
+def main() -> None:
     model = Small_LLM_Model()
     args = parse_args()
     try:
@@ -33,12 +37,12 @@ def main():
         return
 
     function_text = ""
-    all_json: list = []
+    all_json: list[str] = []
     valid_names = [d.name for d in definitions]
     for fn in definitions:
         function_text += f"- name : {fn.name} description : {fn.description}\n"
     print(f"\nNoms valides : {valid_names}")
-
+    nb_prompt: int = 1
     for token in prompt:
         text = token.valid_prompt
         prompt_function = (
@@ -65,13 +69,20 @@ def main():
         result = select_function(model, text, definitions_dict, name,
                                  parameter_schema)
 
+        print(f"Number of prompts : {nb_prompt} / {len(prompt)}")
         print(result)
         print(text)
         print(name, end="\n\n")
         all_json.append(generate_json(text, name, parameter_schema, result))
-
-        with open(args.output, "w", encoding="utf-8") as f:
-            json.dump(all_json, f, indent=2, ensure_ascii=False)
+        path = Path(args.output)
+        path.parent.mkdir(511, True, True)
+        try:
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump(all_json, f, indent=2, ensure_ascii=False)
+        except FileNotFoundError:
+            print("Error: A file cannot be created")
+            sys.exit(1)
+        nb_prompt += 1
 
 
 if (__name__ == "__main__"):

@@ -15,6 +15,10 @@ members = [
     "llm_sdk",
 ]
 
+[[tool.mypy.overrides]]
+module = "llm_sdk.*"
+ignore_missing_imports = true
+
 [tool.uv.sources]
 llm-sdk = { workspace = true, editable = true }
 

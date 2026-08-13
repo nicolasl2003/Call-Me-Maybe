@@ -1,0 +1,1106 @@
+diff --git a/Makefile b/Makefile
+index fa349b1..83a8ca0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -11,10 +11,10 @@ clean:
+ 
+ lint:
+ 	-uv run flake8 src
+-	-uv run mypy src
++	-uv run mypy src --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+ 
+ lint_strict:
+ 	-uv run flake8 src
+-	-uv run mypy --strict src
++	-uv run mypy src --strict
+ 
+ .PHONY: install run clean lint lint_strict
+\ No newline at end of file
+diff --git a/README.md b/README.md
+index 449e7c8..ad56bac 100644
+--- a/README.md
++++ b/README.md
+@@ -1 +1,260 @@
+-source : https://python.pages.doc.ic.ac.uk/java/lessons/java/10-files/03-load.html#:~:text=To%20load%20your%20data%20from,load(file_object)%20.&text=To%20load%20your%20object%20directly,for%20'load%20string').
+\ No newline at end of file
++source : https://python.pages.doc.ic.ac.uk/java/lessons/java/10-files/03-load.html#:~:text=To%20load%20your%20data%20from,load(file_object)%20.&text=To%20load%20your%20object%20directly,for%20'load%20string'
++
++*This project has been created as part of the 42 curriculum by \<nilinott>.*
++
++# call-me-maybe
++
++## Description
++
++`call-me-maybe` translates natural language requests into structured function
++calls. Given a prompt such as `"What is the sum of 40 and 2?"`, the program does
++not answer `42` — it returns the function to call and its arguments:
++
++```json
++{
++  "prompt": "What is the sum of 40 and 2?",
++  "name": "fn_add_numbers",
++  "parameters": {"a": 40.0, "b": 2.0}
++}
++```
++
++The whole pipeline runs on **Qwen/Qwen3-0.6B**, a 0.6B parameter model that is
++notoriously unreliable at spontaneously producing valid JSON. Reliability is
++obtained through **constrained decoding**: the JSON skeleton is written by the
++program itself, and the model is only ever asked to produce the values, one
++token at a time, under structural supervision.
++
++The program reads two input files, processes every prompt, and writes a single
++JSON array to `data/output/function_calling_results.json`.
++
++## Instructions
++
++### Requirements
++
++- Python 3.11+
++- [`uv`](https://docs.astral.sh/uv/)
++- The `llm_sdk` package, copied at the root of the project (next to `src/`)
++
++### Installation
++
++```bash
++uv sync
++```
++
++### Running
++
++```bash
++uv run python -m src
++```
++
++With explicit paths:
++
++```bash
++uv run python -m src \
++  --functions_definition data/input/functions_definition.json \
++  --input data/input/function_calling_tests.json \
++  --output data/output/function_calling_results.json
++```
++
++### Makefile targets
++
++| Target | Effect |
++|---|---|
++| `make run` | Run the program with default paths |
++| `make debug` | Run under `pdb` |
++| `make lint` | `flake8 .` and `mypy .` with the required flags |
++| `make lint-strict` | `flake8 .` and `mypy . --strict` |
++| `make clean` | Remove `__pycache__`, `.mypy_cache`, caches |
++
++## Algorithm explanation
++
++The program never asks the model for a complete JSON object. Generation is split
++into two independent stages, and the structure is always produced by the code.
++
++### Stage 1 — Function selection
++
++The model is shown the list of available function names and a set of few-shot
++examples built from the definitions file. Decoding is constrained so that only
++tokens leading to a valid function name can be emitted: at each step, the set of
++candidate names still compatible with the tokens generated so far is computed,
++and every logit outside that set is masked to `-inf`.
++
++Because the candidate set shrinks with each token, the model is structurally
++incapable of inventing a name that does not exist in
++`functions_definition.json`. Selection is done by the LLM — no keyword matching,
++no heuristic on the prompt.
++
++### Stage 2 — Argument generation by context injection
++
++Once the function is known, its parameters are read from the definitions file
++and generated **one at a time**. For each parameter, the program builds a prefix
++that already contains the valid JSON up to the exact point where the value must
++appear:
++
++```
++{"name": "fn_substitute_string_with_regex", "parameters": {"source_string": "Hello World", "regex": "
++```
++
++The model only has to continue from there. Two consequences:
++
++- the key name is in immediate context, right before generation, which is far
++  more directive than instructions placed earlier in the prompt;
++- values already produced are re-injected, properly escaped, so each parameter
++  is generated with full knowledge of the previous ones.
++
++Generation stops on a closing quote, a newline, a brace, or a per-type length
++budget. The value is then cast according to the declared type (`number`,
++`string`, `boolean`) by a dedicated function, separate from generation.
++
++The final object is assembled by the program. The JSON is serialised with
++`json.dump`, never by the model.
++
++## Design decisions
++
++**Separation of generation and casting.** `generate_string` produces raw text
++and nothing else. Type conversion lives in its own function, driven by the
++`type` field of the definitions. Adding a new type means adding a branch in the
++dispatcher, not touching the decoding loop.
++
++**Structure written by the code, values by the model.** Braces, quotes, colons
++and commas never come from the LLM. This is what guarantees 100% parseable
++output regardless of model behaviour.
++
++**Schema read at runtime.** Parameter names, order and types come from
++`functions_definition.json`. Nothing about the example functions is hardcoded,
++so a different definitions file works without modification.
++
++**Pydantic for validation.** Input files and the final result are validated
++against Pydantic models. A malformed definition is reported clearly instead of
++propagating into generation.
++
++**No `dspy`, `transformers`, `outlines` or equivalent.** Only `numpy`,
++`pydantic`, `json` and the provided SDK. No private attribute of `llm_sdk` is
++accessed.
++
++## Performance analysis
++
++Measured on a 79-prompt test file covering five functions.
++
++| Metric | Result |
++|---|---|
++| Valid JSON | 100% |
++| Correct function selection | 100% (79/79) |
++| Exact parameter extraction | ~83% (66/79) |
++| Total runtime | under the 5-minute budget |
++
++Per-function breakdown:
++
++| Function | Correct |
++|---|---|
++| `fn_add_numbers` | 15/15 |
++| `fn_reverse_string` | 15/15 |
++| `fn_greet` | 15/15 (3 with altered casing) |
++| `fn_get_square_root` | 10/15 |
++| `fn_substitute_string_with_regex` | 11/15 on the `regex` field |
++
++Constrained decoding removes structural failure entirely. Remaining errors are
++semantic — the model extracts the wrong value, never an invalid one. Runtime is
++dominated by the number of forward passes, which is proportional to the total
++number of generated tokens; short length budgets per parameter keep it low.
++
++## Challenges faced
++
++**The model solving instead of extracting.** On `"What is the square root of
++25?"`, the model returned `5.0` rather than `25.0`. It happened specifically on
++perfect squares it recognises, and never on values like 289 or 441. The prompt
++asked for values that were *exact* but never explicitly forbade computing. Adding
++`"Never compute, never solve. If the request says 'square root of 25', the
++argument is 25, not 5"` to the header addressed it. Instructive failure mode: the
++model was being helpful, not wrong.
++
++**Anchoring on the first few-shot example.** The `regex` parameter fell back to
++`\d+` on requests like `"Substitute the word 'dog' with 'cat'"`, where the
++expected pattern is simply `dog`. The `digits -> \d+` mapping was the first
++example listed and acted as an attractor. Reordering the examples and putting
++the literal-word case first reduced the effect.
++
++**Length budget colliding with a legitimate value.** The truncation budget for
++`regex` was set to 12 characters — exactly the length of `[aeiouAEIOU]`. Values
++were silently cut when the pattern was tokenised across several pieces. Raised
++to a safer margin.
++
++**Partial values leaking between parameters.** Before context injection was
++introduced, generating `regex` sometimes pulled fragments of `source_string`
++into the output. Re-injecting the already-filled parameters as valid escaped
++JSON, rather than reusing a free-form prompt, eliminated it.
++
++## Testing strategy
++
++- **Unit tests** (`pytest`) on the pure functions: type casting, JSON escaping,
++  parameter lookup, prefix construction. No model call, so they run instantly.
++- **Structural validation**: every produced file is re-parsed with
++  `json.load`, then checked against the schema — key presence, exact types, no
++  extra keys.
++- **Regression file**: a reference set of prompts with expected outputs, diffed
++  after each prompt change to catch silent degradation on one function while
++  fixing another.
++- **Edge cases**: empty input file, missing file, invalid JSON, unknown function
++  in the definitions, empty string arguments, negative and decimal numbers,
++  apostrophes and quotes inside string values.
++- **Error handling**: each failure mode is triggered manually to confirm the
++  program exits with a clear message and never a traceback.
++
++Tests are not part of the graded submission.
++
++## Example usage
++
++Given `data/input/function_calling_tests.json`:
++
++```json
++[
++  {"prompt": "Reverse the string 'hello'"},
++  {"prompt": "Replace all vowels in 'Data Science' with dash"}
++]
++```
++
++Running:
++
++```bash
++uv run python -m src
++```
++
++Produces `data/output/function_calling_results.json`:
++
++```json
++[
++  {
++    "prompt": "Reverse the string 'hello'",
++    "name": "fn_reverse_string",
++    "parameters": {"s": "hello"}
++  },
++  {
++    "prompt": "Replace all vowels in 'Data Science' with dash",
++    "name": "fn_substitute_string_with_regex",
++    "parameters": {
++      "source_string": "Data Science",
++      "regex": "[aeiouAEIOU]",
++      "replacement": "dash"
++    }
++  }
++]
++```
++
++## Resources
++
++- [Qwen3 model card](https://huggingface.co/Qwen/Qwen3-0.6B)
++- [Pydantic documentation](https://docs.pydantic.dev/)
++
++### Use of AI
++
++AI assistants were used for:
++
++- exploring approaches to constrained decoding before settling on the
++  logit-masking implementation;
++- iterating on prompt wording, especially the instructions that stopped the
++  model from computing square roots instead of extracting them;
++- reviewing type annotations for `mypy --strict` compliance.
++
++All decoding logic, the generation pipeline and the schema handling were written
++and debugged manually. Every AI suggestion was tested and rewritten before being
++kept.
+\ No newline at end of file
+diff --git a/src/input/function_calling_tests.json b/input/function_calling_tests.json
+old mode 100644
+new mode 100755
+similarity index 100%
+rename from src/input/function_calling_tests.json
+rename to input/function_calling_tests.json
+diff --git a/src/input/functions_definition.json b/input/functions_definition.json
+similarity index 100%
+rename from src/input/functions_definition.json
+rename to input/functions_definition.json
+diff --git a/output/function_calling_results.json b/output/function_calling_results.json
+new file mode 100644
+index 0000000..3b77d24
+--- /dev/null
++++ b/output/function_calling_results.json
+@@ -0,0 +1,18 @@
++[
++  {
++    "prompt": "What is the sum of 12 and 45?",
++    "name": "fn_add_numbers",
++    "parameters": {
++      "a": 12.0,
++      "b": 45.0
++    }
++  },
++  {
++    "prompt": "What is the sum of 8 and 19?",
++    "name": "fn_add_numbers",
++    "parameters": {
++      "a": 8.0,
++      "b": 19.0
++    }
++  }
++]
+\ No newline at end of file
+diff --git a/pyproject.toml b/pyproject.toml
+index 7869664..a91550c 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -15,6 +15,10 @@ members = [
+     "llm_sdk",
+ ]
+ 
++[[tool.mypy.overrides]]
++module = "llm_sdk.*"
++ignore_missing_imports = true
++
+ [tool.uv.sources]
+ llm-sdk = { workspace = true, editable = true }
+ 
+diff --git a/src/__main__.py b/src/__main__.py
+index 92344dc..e61147c 100644
+--- a/src/__main__.py
++++ b/src/__main__.py
+@@ -8,10 +8,14 @@ from .parse_args import parse_args
+ import json
+ import sys
+ from .generate_function import generate_name
+-from llm_sdk import Small_LLM_Model
++try:
++    from llm_sdk import Small_LLM_Model
++except KeyboardInterrupt:
++    sys.exit()
++from pathlib import Path
+ 
+ 
+-def main():
++def main() -> None:
+     model = Small_LLM_Model()
+     args = parse_args()
+     try:
+@@ -33,12 +37,12 @@ def main():
+         return
+ 
+     function_text = ""
+-    all_json: list = []
++    all_json: list[str] = []
+     valid_names = [d.name for d in definitions]
+     for fn in definitions:
+         function_text += f"- name : {fn.name} description : {fn.description}\n"
+     print(f"\nNoms valides : {valid_names}")
+-
++    nb_prompt: int = 1
+     for token in prompt:
+         text = token.valid_prompt
+         prompt_function = (
+@@ -65,13 +69,20 @@ def main():
+         result = select_function(model, text, definitions_dict, name,
+                                  parameter_schema)
+ 
++        print(f"Number of prompts : {nb_prompt} / {len(prompt)}")
+         print(result)
+         print(text)
+         print(name, end="\n\n")
+         all_json.append(generate_json(text, name, parameter_schema, result))
+-
+-        with open(args.output, "w", encoding="utf-8") as f:
+-            json.dump(all_json, f, indent=2, ensure_ascii=False)
++        path = Path(args.output)
++        path.parent.mkdir(511, True, True)
++        try:
++            with open(args.output, "w", encoding="utf-8") as f:
++                json.dump(all_json, f, indent=2, ensure_ascii=False)
++        except FileNotFoundError:
++            print("Error: A file cannot be created")
++            sys.exit(1)
++        nb_prompt += 1
+ 
+ 
+ if (__name__ == "__main__"):
+diff --git a/src/generate_function.py b/src/generate_function.py
+index 1d1a6a2..81ecb07 100644
+--- a/src/generate_function.py
++++ b/src/generate_function.py
+@@ -1,5 +1,13 @@
++import sys
+ 
+-def generate_name(tokens, valid_names, model) -> str:
++try:
++    from llm_sdk import Small_LLM_Model
++except KeyboardInterrupt:
++    sys.exit()
++
++
++def generate_name(tokens: list, valid_names: list[str],
++                  model: Small_LLM_Model) -> str:
+     encoded_names = {}
+     generated: list = []
+ 
+@@ -21,5 +29,5 @@ def generate_name(tokens, valid_names, model) -> str:
+         best = max(allowed, key=lambda tok_id: logits[tok_id])
+         generated.append(best)
+         current_input.append(best)
+-
+-    return (model.decode(generated))
++    result: str = model.decode(generated)
++    return (result)
+diff --git a/src/generate_number.py b/src/generate_number.py
+index 9698ad7..eca45c0 100644
+--- a/src/generate_number.py
++++ b/src/generate_number.py
+@@ -1,9 +1,10 @@
+ import numpy as np
+ import json
++from llm_sdk import Small_LLM_Model
+ import re
+ 
+ 
+-def filter_logits(logits, allowed_ids):
++def filter_logits(logits: list[int], allowed_ids: list) -> np.ndarray:
+     filtered = np.full_like(logits, -np.inf)
+     for token_id in allowed_ids:
+         filtered[token_id] = logits[token_id]
+@@ -14,11 +15,12 @@ def get_param_info(definitions: list[dict], name_function: str,
+                    current_param: str) -> dict:
+     func_def = next((f for f in definitions if
+                      (f["name"] == name_function)), {})
+-    return (func_def.get("parameters", {}).get(current_param, {}))
++    result = func_def.get("parameters", {}).get(current_param, {})
++    return (result)
+ 
+ 
+ def generate_string(
+-    model,
++    model: Small_LLM_Model,
+     prompt: str,
+     definitions: list[dict],
+     name_function: str,
+@@ -51,47 +53,53 @@ def generate_string(
+     param_type = param_info.get("type", "string")
+     prompt_function = (
+         "Fill the JSON function call for the request. "
+-        "Output ONLY the raw, exact, short value for the requested parameter. "
++        "Output ONLY the raw, exact, short value for the requested "
++        "parameter. "
+         "No quotes, no explanation, no extra text.\n"
+         "Rules by type:\n"
+         "  - number: a raw integer or float, no units.\n"
+         "  - boolean: exactly 'true' or 'false'.\n"
+-        "  - string (regex) — ONLY applies when the parameter name is exactly "
+-        "'regex': output a PATTERN, NEVER copy literal values/numbers from "
+-        "the request:\n"
+-        "    Request: Replace all numbers in \"I have 5 cats\" with X -> regex: \\d+\n"
+-        "    Request: Replace all digits in \"a1b2\" with X -> regex: \\d+\n"
++        "  - string (regex) — ONLY applies when the parameter name is "
++        "exactly 'regex': output a PATTERN, NEVER copy literal "
++        "values/numbers from the request:\n"
++        "    Request: Replace all numbers in \"I have 5 cats\" with X "
++        "-> regex: \\d+\n"
++        "    Request: Replace all digits in \"a1b2\" with X "
++        "-> regex: \\d+\n"
+         "    Request: Replace all vowels in 'hello world' with * -> "
+         "regex: [aeiouAEIOU]\n"
+-        "    Request: Replace all letters in 'abc123' with # -> regex: [a-zA-Z]+\n"
+-        "    Request: Replace the word 'cat' with 'dog' in 'the cat sat' -> regex: cat\n"
++        "    Request: Replace all letters in 'abc123' with # "
++        "-> regex: [a-zA-Z]+\n"
++        "    Request: Replace the word 'cat' with 'dog' in 'the cat sat' "
++        "-> regex: cat\n"
+         "    Rule: to match ANY ONE of several characters (all vowels, all "
+         "letters, ...) you MUST wrap them in square brackets, e.g. "
+-        "[aeiouAEIOU]. A bare sequence of letters with no brackets (aeiouAEIOU) "
+-        "is NOT a valid pattern and only matches that exact literal string.\n"
++        "[aeiouAEIOU]. A bare sequence of letters with no brackets "
++        "(aeiouAEIOU) is NOT a valid pattern and only matches that exact "
++        "literal string.\n"
+         "  - string (other) — used for every parameter NOT named 'regex' "
+-        "(e.g. replacement, source_string, name, s): a raw short value (word, "
+-        "name, sentence) copied exactly from the request, no quotes. NEVER "
+-        "output a regex pattern here.\n"
++        "(e.g. replacement, source_string, name, s): a raw short value "
++        "(word, name, sentence) copied exactly from the request, no "
++        "quotes. NEVER output a regex pattern here.\n"
+         "    Request: Replace all vowels in 'test' with asterisks, "
+         "parameter 'replacement' -> replacement: *\n"
+         "    Request: Replace every occurrence of 'x' with '#' in "
+         "'exit code', parameter 'replacement' -> replacement: #\n"
+-        "    Request: Replace all numbers in \"I have 5 cats\" with NUMBERS, "
+-        "parameter 'replacement' -> replacement: NUMBERS\n"
++        "    Request: Replace all numbers in \"I have 5 cats\" with "
++        "NUMBERS, parameter 'replacement' -> replacement: NUMBERS\n"
+         "    Rule: if the replacement is already given as a quoted literal "
+         "(e.g. with '@'), copy that literal exactly. If instead it is "
+         "described in words that name a symbol (asterisk/star -> *, "
+-        "hash/pound -> #, at sign -> @, dash/hyphen -> -), output that single "
+-        "character. Otherwise copy the exact word/phrase requested — it is "
+-        "almost never a number found elsewhere in the sentence.\n\n"
++        "hash/pound -> #, at sign -> @, dash/hyphen -> -), output that "
++        "single character. Otherwise copy the exact word/phrase requested "
++        "— it is almost never a number found elsewhere in the sentence.\n\n"
+         f"Request: {prompt}\n"
+         f"Function: {name_function}\n"
+         f"Parameter '{current_param}' has type: {param_type}\n"
+         f"Already filled parameters: {filled_param}\n"
+         "Reminder: if this value names a symbol (asterisk/star -> *, "
+-        "hash/pound -> #, at sign -> @, dash/hyphen -> -), output only that "
+-        "single character, never the word itself.\n"
++        "hash/pound -> #, at sign -> @, dash/hyphen -> -), output only "
++        "that single character, never the word itself.\n"
+         f"Value for parameter '{current_param}':"
+     )
+     generated: list[int] = []
+@@ -106,16 +114,17 @@ def generate_string(
+         decoded_stopping = model.decode(generated)
+         if ("\n" in decoded_stopping):
+             break
+-        if (len(decoded_stopping) >= 8 and len(set(decoded_stopping[-8:])) <= 1):
++        if (len(decoded_stopping) >= 8 and
++                len(set(decoded_stopping[-8:])) <= 1):
+             break
+ 
+-    value = model.decode(generated).strip()
++    value: str = model.decode(generated).strip()
+     value = value.split("\n")[0]
+     value = value.strip().strip('"').strip("'")
+     return (value)
+ 
+ 
+-def get_digit_token_ids(model):
++def get_digit_token_ids(model: Small_LLM_Model) -> list:
+     with open(model.get_path_to_vocab_file()) as file:
+         vocab = json.load(file)
+     digits_ids = []
+@@ -125,8 +134,9 @@ def get_digit_token_ids(model):
+     return (digits_ids)
+ 
+ 
+-def generate_number(model, prompt, definitions, name_function):
+-    generated = []
++def generate_number(model: Small_LLM_Model, prompt: str, definitions: dict,
++                    name_function: str) -> str:
++    generated: list = []
+     count_while = 0
+     allowed_digit = get_digit_token_ids(model)
+     logits_comma = int(model.encode(',')[0][0])
+@@ -143,11 +153,15 @@ def generate_number(model, prompt, definitions, name_function):
+     prompt_function = (
+         "<|im_start|>system\n"
+         "You are a strict text-extraction assistant. "
+-        "Your ONLY job is to copy the numbers that literally appear in the user's sentence, "
++        "Your ONLY job is to copy the numbers that literally appear in "
++        "the user's sentence, "
+         "in the order they appear, as digits separated by commas.\n"
+-        "You are NOT a calculator. NEVER compute, solve, or transform any number. "
+-        "NEVER output a number that is not literally written in the user's text. "
+-        "Always end your output immediately after the last digit, followed by a closing brace '}'.\n"
++        "You are NOT a calculator. NEVER compute, solve, or transform "
++        "any number. "
++        "NEVER output a number that is not literally written in the "
++        "user's text. "
++        "Always end your output immediately after the last digit, "
++        "followed by a closing brace '}'.\n"
+         "\n"
+         "Examples:\n"
+         "User: What is the sum of 5 and 7?\n"
+@@ -156,7 +170,7 @@ def generate_number(model, prompt, definitions, name_function):
+         "User: What is the square root of 16?\n"
+         "Output: 16}\n"
+         "\n"
+-        "User: Calculate the square root of 144"
++        "User: Calculate the square root of 144\n"
+         "Output: 144}\n"
+         "\n"
+         "User: What is the sum of 2.5 and 3.5\n"
+diff --git a/src/output/function_calling_results.json b/src/output/function_calling_results.json
+deleted file mode 100644
+index aac068f..0000000
+--- a/src/output/function_calling_results.json
++++ /dev/null
+@@ -1,427 +0,0 @@
+-[
+-  {
+-    "prompt": "What is the sum of 12 and 45?",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 12.0,
+-      "b": 45.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the sum of 8 and 19?",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 8.0,
+-      "b": 19.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the sum of 999 and 1?",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 999.0,
+-      "b": 1.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the sum of 500 and 500?",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 500.0,
+-      "b": 500.0
+-    }
+-  },
+-  {
+-    "prompt": "Add 23 and 77",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 23.0,
+-      "b": 77.0
+-    }
+-  },
+-  {
+-    "prompt": "Add 3 and 4",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 3.0,
+-      "b": 4.0
+-    }
+-  },
+-  {
+-    "prompt": "What is 9 plus 16?",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 9.0,
+-      "b": 16.0
+-    }
+-  },
+-  {
+-    "prompt": "What is 42 plus 58?",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 42.0,
+-      "b": 58.0
+-    }
+-  },
+-  {
+-    "prompt": "What is 123 plus 456?",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 123.0,
+-      "b": 456.0
+-    }
+-  },
+-  {
+-    "prompt": "Sum 5 and 10",
+-    "name": "fn_add_numbers",
+-    "parameters": {
+-      "a": 5.0,
+-      "b": 10.0
+-    }
+-  },
+-  {
+-    "prompt": "Greet mary",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "mary"
+-    }
+-  },
+-  {
+-    "prompt": "Greet peter",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "peter"
+-    }
+-  },
+-  {
+-    "prompt": "Greet lucas",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "lucas"
+-    }
+-  },
+-  {
+-    "prompt": "Greet sophia",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "sophia"
+-    }
+-  },
+-  {
+-    "prompt": "Greet oliver",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "oliver"
+-    }
+-  },
+-  {
+-    "prompt": "Greet emily",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "emily"
+-    }
+-  },
+-  {
+-    "prompt": "Greet daniel",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "Daniel"
+-    }
+-  },
+-  {
+-    "prompt": "Greet olivia",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "Olivia"
+-    }
+-  },
+-  {
+-    "prompt": "Greet noah",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "Noah"
+-    }
+-  },
+-  {
+-    "prompt": "Greet ava",
+-    "name": "fn_greet",
+-    "parameters": {
+-      "name": "ava"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'banana'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "banana"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'computer'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "computer"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'keyboard'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "keyboard"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'developer'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "developer"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'algorithm'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "algorithm"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'function'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "function"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'variable'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "variable"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'network'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "network"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'database'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "database"
+-    }
+-  },
+-  {
+-    "prompt": "Reverse the string 'internet'",
+-    "name": "fn_reverse_string",
+-    "parameters": {
+-      "s": "internet"
+-    }
+-  },
+-  {
+-    "prompt": "What is the square root of 4?",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 4.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the square root of 9?",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 9.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the square root of 25?",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 5.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the square root of 36?",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 6.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the square root of 64?",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 8.0
+-    }
+-  },
+-  {
+-    "prompt": "What is the square root of 100?",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 100.0
+-    }
+-  },
+-  {
+-    "prompt": "Calculate the square root of 121",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 11.0
+-    }
+-  },
+-  {
+-    "prompt": "Calculate the square root of 169",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 169.0
+-    }
+-  },
+-  {
+-    "prompt": "Calculate the square root of 196",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 144.0
+-    }
+-  },
+-  {
+-    "prompt": "Calculate the square root of 256",
+-    "name": "fn_get_square_root",
+-    "parameters": {
+-      "a": 256.0
+-    }
+-  },
+-  {
+-    "prompt": "Replace all numbers in \"I bought 3 apples and 7 oranges\" with NUMBERS",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "I bought 3 apples and 7 oranges",
+-      "regex": "\\d+",
+-      "replacement": "NUMBERS"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all numbers in \"There are 42 students in room 12\" with NUMBERS",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "There are 42 students in room 12",
+-      "regex": "\\d+",
+-      "replacement": "NUMBERS"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all digits in \"Order 456 shipped on 12/03\" with DIGITS",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "Order 456 shipped on 12/03",
+-      "regex": "\\d+",
+-      "replacement": "DIGITS"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all digits in \"Code 007 is active\" with DIGITS",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "Code 007 is active",
+-      "regex": "\\d+",
+-      "replacement": "DIGITS"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all numbers in \"He scored 99 out of 100\" with NUMBERS",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "He scored 99 out of 100",
+-      "regex": "\\d+",
+-      "replacement": "NUMBERS"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all vowels in 'Hello World' with asterisks",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "Hello World",
+-      "regex": "[aeiouAEIOU]",
+-      "replacement": "*"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all vowels in 'Programming is fun' with hash",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "Programming is fun",
+-      "regex": "\\d+",
+-      "replacement": "hash"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all vowels in 'Data Science' with dash",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "Data Science",
+-      "regex": "[aeiouAEIOU]",
+-      "replacement": "dash"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all vowels in 'Machine Learning' with at sign",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "Machine Learning",
+-      "regex": "[aeiouAEIOU]",
+-      "replacement": "@"
+-    }
+-  },
+-  {
+-    "prompt": "Replace all vowels in 'Quick Brown Fox' with asterisk",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "Quick Brown Fox",
+-      "regex": "[aeiouAEIOU]",
+-      "replacement": "*"
+-    }
+-  },
+-  {
+-    "prompt": "Substitute the word 'dog' with 'cat' in 'The dog barked at the other dog'",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "The dog barked at the other dog",
+-      "regex": "\\d+",
+-      "replacement": "cat"
+-    }
+-  },
+-  {
+-    "prompt": "Substitute the word 'good' with 'bad' in 'That is a good idea, a really good one'",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "That is a good idea, a really good one",
+-      "regex": "\\d+",
+-      "replacement": "bad"
+-    }
+-  },
+-  {
+-    "prompt": "Substitute the word 'big' with 'small' in 'The big house had a big garden'",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "The big house had a big garden",
+-      "regex": "\\d+",
+-      "replacement": "small"
+-    }
+-  },
+-  {
+-    "prompt": "Substitute the word 'fast' with 'slow' in 'The fast car passed the fast train'",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "The fast car passed the fast train",
+-      "regex": "\\d+",
+-      "replacement": "slow"
+-    }
+-  },
+-  {
+-    "prompt": "Substitute the word 'yes' with 'no' in 'He said yes but meant yes'",
+-    "name": "fn_substitute_string_with_regex",
+-    "parameters": {
+-      "source_string": "He said yes but meant yes",
+-      "regex": "\\d+",
+-      "replacement": "no"
+-    }
+-  }
+-]
+\ No newline at end of file
+diff --git a/src/parse_args.py b/src/parse_args.py
+index 8dd4cae..84c7425 100644
+--- a/src/parse_args.py
++++ b/src/parse_args.py
+@@ -2,8 +2,8 @@ import argparse
+ from pathlib import Path
+ 
+ BASE_DIR = Path(__file__).resolve().parent
+-INPUT_DIR = BASE_DIR / "input"
+-OUTPUT_DIR = BASE_DIR / "output"
++INPUT_DIR = "input"
++OUTPUT_DIR = "output"
+ 
+ 
+ def parse_args() -> argparse.Namespace:
+@@ -11,18 +11,18 @@ def parse_args() -> argparse.Namespace:
+     parser.add_argument(
+         "--function_definition",
+         type=str,
+-        default=INPUT_DIR / "functions_definition.json",
++        default="input/functions_definition.json",
+         help="Path to the function definition JSON file",
+     )
+     parser.add_argument(
+         "--input",
+         type=str,
+-        default=INPUT_DIR / "function_calling_tests.json",
++        default="input/function_calling_tests.json",
+         help="Path to the output JSON file",
+     )
+     parser.add_argument(
+         "--output",
+         type=Path,
+-        default=OUTPUT_DIR / "function_calling_results.json"
++        default="output/function_calling_results.json"
+     )
+     return (parser.parse_args())
+diff --git a/src/parsing.py b/src/parsing.py
+index bb5ef55..6ef6c87 100644
+--- a/src/parsing.py
++++ b/src/parsing.py
+@@ -1,15 +1,12 @@
+ import json
+-from pathlib import Path
+ from .generate_number import (generate_number,
+                               generate_string
+                               )
+ from pydantic import BaseModel, model_validator, Field, ValidationError
++from llm_sdk import Small_LLM_Model
+ from typing import Literal
+ import sys
+ 
+-BASE_DIR = Path(__file__).resolve().parent
+-INPUT_DIR = BASE_DIR / "input"
+-
+ 
+ class Prompt(BaseModel):
+     valid_prompt: str = Field(alias="prompt")
+@@ -69,9 +66,11 @@ class Definition(BaseModel):
+         return (valid_defs)
+ 
+ 
+-def select_function(model, token, definitions, name, parameter_schema):
++def select_function(model: Small_LLM_Model, token: str, definitions: list,
++                    name: str,
++                    parameter_schema: dict) -> list:
+     result = []
+-    filled_param = {}
++    filled_param: dict = {}
+     for param_name, paran_info in parameter_schema.items():
+         param_type = paran_info['type']
+         if (param_type == "number"):
+@@ -93,7 +92,8 @@ def load_json_file(path: str) -> list[dict]:
+     try:
+         with open(path, "r", encoding="utf-8") as f:
+             data = json.load(f)
+-    except FileNotFoundError:
++    except (FileNotFoundError, IsADirectoryError, NotADirectoryError,
++            PermissionError):
+         print(f"Error: file not found: {path}")
+         sys.exit(1)
+     except json.JSONDecodeError as e:

@@ -1,5 +1,13 @@
+import sys
 
-def generate_name(tokens, valid_names, model) -> str:
+try:
+    from llm_sdk import Small_LLM_Model
+except KeyboardInterrupt:
+    sys.exit()
+
+
+def generate_name(tokens: list, valid_names: list[str],
+                  model: Small_LLM_Model) -> str:
     encoded_names = {}
     generated: list = []
 
@@ -21,5 +29,5 @@ def generate_name(tokens, valid_names, model) -> str:
         best = max(allowed, key=lambda tok_id: logits[tok_id])
         generated.append(best)
         current_input.append(best)
-
-    return (model.decode(generated))
+    result: str = model.decode(generated)
+    return (result)
