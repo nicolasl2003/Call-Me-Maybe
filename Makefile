@@ -10,7 +10,7 @@ clean:
 	rm -rf .venv
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
-	rm -rf output
+	rm -rf data/output
 
 lint:
 	-uv run flake8 src

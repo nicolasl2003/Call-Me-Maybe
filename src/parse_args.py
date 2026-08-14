@@ -23,6 +23,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default="output/function_calling_results.json"
+        default="data/output/function_calling_results.json"
     )
     return (parser.parse_args())
