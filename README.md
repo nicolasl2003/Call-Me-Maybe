@@ -1,6 +1,4 @@
-source : https://python.pages.doc.ic.ac.uk/java/lessons/java/10-files/03-load.html#:~:text=To%20load%20your%20data%20from,load(file_object)%20.&text=To%20load%20your%20object%20directly,for%20'load%20string'
-
-*This project has been created as part of the 42 curriculum by \<nilinott>.*
+*This project has been created as part of the 42 curriculum by <nilinott>.*
 
 # call-me-maybe
 
@@ -244,6 +242,7 @@ Produces `data/output/function_calling_results.json`:
 
 - [Qwen3 model card](https://huggingface.co/Qwen/Qwen3-0.6B)
 - [Pydantic documentation](https://docs.pydantic.dev/)
+- [Documentation Open](https://python.pages.doc.ic.ac.uk/java/lessons/java/10-files/03-load.html#:~:text=To%20load%20your%20data%20from,load(file_object)%20.&text=To%20load%20your%20object%20directly,for%20'load%20string')
 
 ### Use of AI
 

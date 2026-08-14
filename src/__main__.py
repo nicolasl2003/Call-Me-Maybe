@@ -7,6 +7,7 @@ from .generate_json import generate_json
 from .parse_args import parse_args
 import json
 import sys
+from typing import Any
 from .generate_function import generate_name
 try:
     from llm_sdk import Small_LLM_Model
@@ -28,7 +29,8 @@ def main() -> None:
     except ValueError as e:
         print(e)
         sys.exit(1)
-    definitions_dict = [d.model_dump() for d in definitions]
+    definitions_dict: list[dict[str, Any]] = [d.model_dump() for d in
+                                              definitions]
     if not prompt:
         print("Error: no valid prompts to process")
         return
@@ -37,7 +39,7 @@ def main() -> None:
         return
 
     function_text = ""
-    all_json: list[str] = []
+    all_json: list[dict] = []
     valid_names = [d.name for d in definitions]
     for fn in definitions:
         function_text += f"- name : {fn.name} description : {fn.description}\n"

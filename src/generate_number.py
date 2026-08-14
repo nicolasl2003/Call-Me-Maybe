@@ -1,10 +1,15 @@
 import numpy as np
 import json
-from llm_sdk import Small_LLM_Model
+import sys
+try:
+    from llm_sdk import Small_LLM_Model
+except KeyboardInterrupt:
+    print("Interrupted by user")
+    sys.exit(1)
 import re
 
 
-def filter_logits(logits: list[int], allowed_ids: list) -> np.ndarray:
+def filter_logits(logits: list[float], allowed_ids: list) -> np.ndarray:
     filtered = np.full_like(logits, -np.inf)
     for token_id in allowed_ids:
         filtered[token_id] = logits[token_id]
@@ -15,7 +20,7 @@ def get_param_info(definitions: list[dict], name_function: str,
                    current_param: str) -> dict:
     func_def = next((f for f in definitions if
                      (f["name"] == name_function)), {})
-    result = func_def.get("parameters", {}).get(current_param, {})
+    result: dict = func_def.get("parameters", {}).get(current_param, {})
     return (result)
 
 
@@ -134,7 +139,8 @@ def get_digit_token_ids(model: Small_LLM_Model) -> list:
     return (digits_ids)
 
 
-def generate_number(model: Small_LLM_Model, prompt: str, definitions: dict,
+def generate_number(model: Small_LLM_Model, prompt: str,
+                    definitions: list[dict],
                     name_function: str) -> str:
     generated: list = []
     count_while = 0
@@ -145,7 +151,7 @@ def generate_number(model: Small_LLM_Model, prompt: str, definitions: dict,
     logits_negative = int(model.encode('-')[0][0])
     logits_negative_space: int = int(model.encode(' -')[0][0])
     item = [i for i in definitions if i["name"] == name_function][0]
-    number_in_prompt = re.findall(r'-?\d+(?:\.\d+)?', prompt)
+    negative_numbers = re.findall(r'-\d+(?:\.\d+)?', prompt)
     if item is None:
         raise Exception("No item found with function")
     nb_params = len(item['parameters'])
@@ -195,8 +201,8 @@ def generate_number(model: Small_LLM_Model, prompt: str, definitions: dict,
 
         is_start_of_number = ((not generated) or generated[-1] == logits_comma)
 
-        if (is_start_of_number and nb_comma < len(number_in_prompt)
-                and number_in_prompt[nb_comma].startswith('-')):
+        if (is_start_of_number and nb_comma < len(negative_numbers)
+                and negative_numbers[nb_comma].startswith('-')):
             generated.append(logits_negative)
             if (count_while >= MAX_ITER):
                 break
@@ -222,4 +228,5 @@ def generate_number(model: Small_LLM_Model, prompt: str, definitions: dict,
         if (count_while >= MAX_ITER):
             break
         generated.append(best)
-    return (model.decode(generated))
+        result: str = model.decode(generated)
+    return (result)

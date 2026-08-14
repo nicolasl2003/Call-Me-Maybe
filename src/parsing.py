@@ -66,7 +66,8 @@ class Definition(BaseModel):
         return (valid_defs)
 
 
-def select_function(model: Small_LLM_Model, token: str, definitions: list,
+def select_function(model: Small_LLM_Model, token: str,
+                    definitions: list[dict],
                     name: str,
                     parameter_schema: dict) -> list:
     result = []
