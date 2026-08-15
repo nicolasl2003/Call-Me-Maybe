@@ -1,20 +1,5 @@
 [
   {
-    "name": "fn_logical_and",
-    "description": "Perform a logical AND operation between two boolean values.",
-    "parameters": {
-      "a": {
-        "type": "boolean"
-      },
-      "b": {
-        "type": "boolean"
-      }
-    },
-    "returns": {
-      "type": "boolean"
-    }
-  },
-  {
     "name": "fn_add_numbers",
     "description": "Add two numbers together and return their sum.",
     "parameters": {

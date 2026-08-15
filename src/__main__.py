@@ -17,6 +17,36 @@ from pathlib import Path
 
 
 def main() -> None:
+    """Run the function-calling pipeline from prompts to JSON output.
+
+    This function orchestrates the full workflow:
+        1. Parse CLI arguments (input file, function definitions file,
+        output path).
+        2. Parse the user prompts and the available function definitions.
+        3. For each prompt, select the most appropriate function using the
+           language model, based on the available function definitions.
+        4. Extract the required parameters for the selected function from
+           the prompt text.
+        5. Generate a structured JSON object representing the function call
+           (name and arguments) and append it to the result list.
+        6. Write the accumulated results to the output file after each
+           processed prompt.
+
+    The function relies on external helpers:
+        - `parse_args` to retrieve CLI arguments.
+        - `parsing_prompt` to load and validate prompts.
+        - `parsing_definition` to load and validate function definitions.
+        - `generate_name` to select the function name via the model.
+        - `select_function` to extract parameter values via the model.
+        - `generate_json` to build the final JSON function call.
+
+    Raises:
+        SystemExit: If function definitions cannot be parsed, or if the
+            output file cannot be created.
+
+    Returns:
+        None
+    """
     model = Small_LLM_Model()
     args = parse_args()
     try:
@@ -43,7 +73,7 @@ def main() -> None:
     valid_names = [d.name for d in definitions]
     for fn in definitions:
         function_text += f"- name : {fn.name} description : {fn.description}\n"
-    print(f"\nNoms valides : {valid_names}")
+    print(f"\nValid names : {valid_names}")
     nb_prompt: int = 1
     for token in prompt:
         text = token.valid_prompt

@@ -8,6 +8,27 @@ except KeyboardInterrupt:
 
 def generate_name(tokens: list, valid_names: list[str],
                   model: Small_LLM_Model) -> str:
+    """Generate the name of the function selected by the model.
+
+    Performs constrained greedy decoding restricted to the set of
+    valid function names: at each step, only tokens that keep the
+    generated sequence a prefix of at least one encoded name in
+    `valid_names` are allowed, guaranteeing the final output exactly
+    matches one of the candidates.
+
+    Args:
+        tokens: The encoded input prompt (as produced by
+            `model.encode`), used as the initial context for
+            decoding.
+        valid_names: The list of allowed function names the model
+            may choose from.
+        model: The `Small_LLM_Model` instance used for encoding,
+            decoding and computing logits.
+
+    Returns:
+        The name (as a string) of the function chosen by the model,
+        guaranteed to be one of `valid_names`.
+    """
     encoded_names = {}
     generated: list = []
 

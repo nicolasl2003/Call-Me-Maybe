@@ -10,6 +10,25 @@ import re
 
 
 def filter_logits(logits: list[float], allowed_ids: list) -> np.ndarray:
+    """Mask logits to only allow a restricted set of token ids.
+
+    Creates an array of the same shape as `logits` filled with
+    `-inf`, then restores the original logit values only at the
+    positions specified by `allowed_ids`. This is typically used to
+    constrain generation to a fixed vocabulary subset (e.g. digits,
+    punctuation) during sampling.
+
+    Args:
+        logits: The raw logits produced by the model for the current
+            generation step.
+        allowed_ids: The token ids that should remain unmasked (i.e.
+            keep their original logit value).
+
+    Returns:
+        A `np.ndarray` of the same shape as `logits`, where all
+        values are `-inf` except at `allowed_ids`, which retain their
+        original values.
+    """
     filtered = np.full_like(logits, -np.inf)
     for token_id in allowed_ids:
         filtered[token_id] = logits[token_id]
@@ -18,6 +37,24 @@ def filter_logits(logits: list[float], allowed_ids: list) -> np.ndarray:
 
 def get_param_info(definitions: list[dict], name_function: str,
                    current_param: str) -> dict:
+    """Retrieve the schema info for a specific parameter of a function.
+
+    Searches `definitions` for the function whose name matches
+    `name_function`, then extracts the schema information for the
+    parameter named `current_param` from its `parameters` mapping.
+
+    Args:
+        definitions: The list of function definition dictionaries to
+            search through.
+        name_function: The name of the function to look up.
+        current_param: The name of the parameter whose schema info
+            should be retrieved.
+
+    Returns:
+        A dictionary describing the parameter (e.g. its type,
+        description, enum values, etc.), or an empty dictionary if
+        the function or the parameter is not found.
+    """
     func_def = next((f for f in definitions if
                      (f["name"] == name_function)), {})
     result: dict = func_def.get("parameters", {}).get(current_param, {})
@@ -130,6 +167,20 @@ def generate_string(
 
 
 def get_digit_token_ids(model: Small_LLM_Model) -> list:
+    """Retrieve the token ids corresponding to digits and the decimal point.
+
+    Loads the model's vocabulary file and looks up the token id for
+    each character in "0123456789.", allowing generation to be
+    restricted to numeric tokens only.
+
+    Args:
+        model: The `Small_LLM_Model` instance providing access to the
+            vocabulary file path.
+
+    Returns:
+        A list of token ids corresponding to the digits `0`-`9` and
+        the `.` character, in that order.
+    """
     with open(model.get_path_to_vocab_file()) as file:
         vocab = json.load(file)
     digits_ids = []
@@ -142,6 +193,35 @@ def get_digit_token_ids(model: Small_LLM_Model) -> list:
 def generate_number(model: Small_LLM_Model, prompt: str,
                     definitions: list[dict],
                     name_function: str) -> str:
+    """Generate a comma-separated list of numeric parameter values.
+
+    Uses constrained greedy decoding to extract, verbatim, the numbers
+    present in `prompt` that correspond to the numeric parameters of
+    `name_function`. At each generation step, the set of allowed
+    tokens is restricted based on position (start of a number vs.
+    middle of a number) and on whether the corresponding number in
+    the prompt is negative, ensuring the model can only copy digits,
+    a decimal point, a minus sign, commas, or the closing brace.
+
+    Args:
+        model: The `Small_LLM_Model` instance used for encoding,
+            decoding and computing logits.
+        prompt: The user's natural-language request containing the
+            numeric values to extract.
+        definitions: The list of available function definitions,
+            each describing its name and parameters.
+        name_function: The name of the function whose numeric
+            parameters should be extracted from `prompt`.
+
+    Returns:
+        A string of comma-separated numeric values (as they appear
+        in the prompt), terminated once a closing brace is generated
+        or `MAX_ITER` iterations is reached.
+
+    Raises:
+        Exception: If no function matching `name_function` is found
+            in `definitions`.
+    """
     generated: list = []
     count_while = 0
     allowed_digit = get_digit_token_ids(model)
