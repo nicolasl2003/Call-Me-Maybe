@@ -184,8 +184,6 @@ JSON, rather than reusing a free-form prompt, eliminated it.
 
 ## Testing strategy
 
-- **Unit tests** (`pytest`) on the pure functions: type casting, JSON escaping,
-  parameter lookup, prefix construction. No model call, so they run instantly.
 - **Structural validation**: every produced file is re-parsed with
   `json.load`, then checked against the schema — key presence, exact types, no
   extra keys.
