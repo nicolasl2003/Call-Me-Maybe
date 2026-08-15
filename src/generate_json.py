@@ -37,7 +37,7 @@ def generate_params(parameters: dict, values: list) -> dict:
         elif (excepted_type == "string"):
             result[name] = str(raw_value)
         elif (excepted_type == "boolean"):
-            result[name] = bool(raw_value).lower() in ("true", "1", "yes")
+            result[name] = str(raw_value).lower() in ("true", "1", "yes")
         else:
             result[name] = raw_value
     return (result)
