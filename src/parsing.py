@@ -78,6 +78,15 @@ def select_function(model: Small_LLM_Model, token: str,
             value = generate_number(model, token, definitions, name)
             result = value.split(',')
             return (result)
+        elif (param_type == "integer"):
+            value = generate_number(model, token, definitions, name)
+            result = value.split(',')
+            return (result)
+        elif (param_type == "boolean"):
+            value = generate_string(model, token, definitions,
+                                    name, param_name, filled_param)
+            filled_param.update({param_name: value})
+            result.append(value)
         elif (param_type == "string"):
             value = generate_string(model, token, definitions,
                                     name, param_name, filled_param)

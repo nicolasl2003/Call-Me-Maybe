@@ -75,7 +75,11 @@ def main() -> None:
         print(result)
         print(text)
         print(name, end="\n\n")
-        all_json.append(generate_json(text, name, parameter_schema, result))
+        try:
+            all_json.append(generate_json(text, name, parameter_schema,
+                                          result))
+        except Exception:
+            print("Error: unknown type")
         path = Path(args.output)
         path.parent.mkdir(511, True, True)
         try:
