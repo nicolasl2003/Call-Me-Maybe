@@ -8,7 +8,7 @@ def generate_params(parameters: dict, values: list) -> dict:
     "boolean" -> bool), based on the corresponding schema's "type".
 
     Args:
-        parameters: A mapping of parameter names to their schema
+        parameters: A mapping of parameter names to theraw_valueir schema
             info, each containing at least a "type" key.
         values: A list of raw values (e.g. strings) to convert and
             assign to the parameters, in the same order as
@@ -37,7 +37,8 @@ def generate_params(parameters: dict, values: list) -> dict:
         elif (excepted_type == "string"):
             result[name] = str(raw_value)
         elif (excepted_type == "boolean"):
-            result[name] = str(raw_value).lower() in ("true", "1", "yes")
+            result[name] = (True if raw_value == "true" else
+                            (False if raw_value == "false" else None))
         else:
             result[name] = raw_value
     return (result)

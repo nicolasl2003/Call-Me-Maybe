@@ -115,7 +115,8 @@ def main() -> None:
         try:
             with open(args.output, "w", encoding="utf-8") as f:
                 json.dump(all_json, f, indent=2, ensure_ascii=False)
-        except FileNotFoundError:
+        except ((FileNotFoundError, IsADirectoryError, NotADirectoryError,
+                PermissionError)):
             print("Error: A file cannot be created")
             sys.exit(1)
         nb_prompt += 1
