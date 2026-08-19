@@ -36,11 +36,14 @@ def generate_params(parameters: dict, values: list) -> dict:
             result[name] = float(raw_value)
         elif (excepted_type == "string"):
             result[name] = str(raw_value)
+        elif (excepted_type == ""):
+            print("ok")
+            result[name] = int(raw_value)
         elif (excepted_type == "boolean"):
             result[name] = (True if raw_value == "true" else
                             (False if raw_value == "false" else None))
         else:
-            result[name] = raw_value
+            raise ValueError("Error: unknown type")
     return (result)
 
 
