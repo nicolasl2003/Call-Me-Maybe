@@ -36,8 +36,7 @@ def generate_params(parameters: dict, values: list) -> dict:
             result[name] = float(raw_value)
         elif (excepted_type == "string"):
             result[name] = str(raw_value)
-        elif (excepted_type == ""):
-            print("ok")
+        elif (excepted_type == "integer"):
             result[name] = int(raw_value)
         elif (excepted_type == "boolean"):
             result[name] = (True if raw_value == "true" else
